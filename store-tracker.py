@@ -4,7 +4,6 @@ import supervision as sv
 import cv2 as cv
 import numpy as np
 import pytesseract
-# from PIL import Image
 
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
@@ -12,8 +11,8 @@ pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tessera
 filePath = r"C:\Users\PHILLIP\Downloads\merged_trimmed_short - Made with Clipchamp.mp4"
 targetPath = "C:\\Users\\PHILLIP\\Desktop\\Code Projects\\python\\Store-Tracker\\output.mp4"
 
-lineTop = sv.Point(x=600, y=0) #make x 150
-lineBottom = sv.Point(x=600, y=900)
+lineTop = sv.Point(x=300, y=0) #make x 150
+lineBottom = sv.Point(x=300, y=900)
 
 workerZoneOne = np.array([
     [0, 1079],
@@ -31,18 +30,6 @@ glassesZone = np.array([
     [660, 740]
 ])
 
-#This is for getting the time
-
-#for whole thing (date and time)
-# wholeTimeZone = np.array([
-#     [1380, 1000],
-#     [1880, 1000],
-#     [1880, 1070],
-#     [1380, 1070]
-# ])
-
-wholeTimeX, wholeTimeY = 1380, 1000
-wholeTimeW, wholeTimeH = 500, 70
 
 #for just date
 # dateZone = np.array([
@@ -65,9 +52,6 @@ dateW, dateH = 270, 70
 
 timeX, timeY = 1660, 1000
 timeW, timeH = 220, 70
-
-
-
 
 
 
@@ -96,7 +80,7 @@ if __name__  == "__main__":
     
     model = YOLO("yolo11l.pt")
 
-    byteTrack = sv.ByteTrack(frame_rate=videoInfo.fps)
+    byteTrack = sv.ByteTrack(frame_rate=videoInfo.fps) 
 
     frameGenerator = sv.get_video_frames_generator(args.filePath)
 
@@ -126,7 +110,9 @@ if __name__  == "__main__":
     # timeZone = sv.PolygonZone(polygon=timeZone)
 
     crossedIn = set()
+    entryTimes = {}
     crossedOut = set()
+    exitTimes = {}
 
     
     with sv.VideoSink(target_path=targetPath, video_info=videoInfo) as sink:
@@ -140,25 +126,51 @@ if __name__  == "__main__":
             detections = detections[workerZoneOneTriggered]
             # detections = detections[glassesZone.trigger(detections)]
             detections = byteTrack.update_with_detections(detections=detections)
+            
+            #crossingIn/Out is a tuple with elements of people going in and out, it has 2 elements, both arrays such as (array([False, False]), array([False, True]))
+            # so what I did was turn it into a list of only one element (for in we take element 0 and out is 1) then I took that element and did detections
+            # on it so that only true value would appear and this solved my issue of figuring out who crossed the line correctly instead of just guessing
+            
+            crossingIn = lineZone.trigger(detections)
+            crossingIn = list(crossingIn)
+            crossingIn.pop(1)
+            crossingIn = crossingIn[0]
 
-            peopleIn = lineZone.trigger(detections)
-            # crossingIn = detections[peopleIn]
+            crossingIn = detections[crossingIn]
 
-            # print(crossingIn)
+            crossingOut = lineZone.trigger(detections)
+            crossingOut = list(crossingOut)
+            crossingOut.pop(0)
+            crossingOut = crossingOut[0]
 
+            crossingOut = detections[crossingOut]
+
+            #This stuff gets the time/date of the frame, and then we use that to say when someone crossed and at what time, idk if I will use date yet
             dateZoneCropped = frame[dateY: dateY + dateH, dateX: dateX + dateW]
             timeZoneCropped = frame[timeY: timeY + timeH, timeX: timeX + timeW]
 
             ocrDate = pytesseract.image_to_string(dateZoneCropped)
             ocrTime = pytesseract.image_to_string(timeZoneCropped)
 
-            for tracker_id in detections.tracker_id:
-                if tracker_id not in crossedIn and lineZone.in_count > len(crossedIn):
-                    print(f"ID {tracker_id} crossed into the store at {ocrTime}")
+            for tracker_id in crossingIn.tracker_id:
+                tracker_id = int(tracker_id)
+                ocrTime = ocrTime.strip()
+                if tracker_id not in crossedIn:
+                    print(f"ID {tracker_id} entered the store at {ocrTime}")
+                    entryTimes[tracker_id] = ocrTime
                     crossedIn.add(tracker_id)
-                elif tracker_id not in crossedOut and lineZone.out_count > len(crossedOut):
+
+            for tracker_id in crossingOut.tracker_id:
+                tracker_id = int(tracker_id)
+                ocrTime = ocrTime.strip()
+                if tracker_id not in crossedOut:
                     print(f"ID {tracker_id} left the store at {ocrTime}")
+                    exitTimes[tracker_id] = f"{ocrTime}"
                     crossedOut.add(tracker_id)
+
+            print(entryTimes)
+            print(exitTimes)
+                
 
             labels = [
                 f"# {tracker_id} {conf:.2f}"
@@ -194,6 +206,10 @@ if __name__  == "__main__":
 
     cv.destroyAllWindows()
 
+
+#To do face detection I think I can do something semi-similar to what I did with the time but slightly different approach, I think I can cut the frame
+# around each ID (or just one for now) and then I can use a face tracker somehow, then with the face tracker I will save the face as a numpy array or
+# something. Then I will log it in a csv or some file to refer back to later.
 
 #I need to make a thing that 1. can extract the time from the screen, 2. say when a new ID appears say it appeared at that time, 3. When someone goes in/out
 # it needs to say like ID 42 entered at 3:07:41
