@@ -184,8 +184,15 @@ if __name__  == "__main__":
             # ex. if ID 4 closely matches ID 3, we say anything with ID 4 now becomes ID 3
 
 
-            #
+            print(detections.xyxy)
+            #prints something like
+            # [[     1075.6      622.46      1179.7      975.01]
+            # [     333.28      535.39      431.53      778.53]
+            # [     254.77      652.97      301.02      755.86]
+            # [     384.67      701.37      478.85      786.96]
+            # [     990.59      687.06      1058.6      763.17]]
 
+            # If I loop through it, then each element will be a different person tracked and then I can crop the frame around them and it will be easiert
 
             labels = [
                 f"# {tracker_id} {conf:.2f}"
