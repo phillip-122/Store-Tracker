@@ -171,6 +171,21 @@ if __name__  == "__main__":
             print(entryTimes)
             print(exitTimes)
                 
+            #What I need to do to get the faces
+            # 1. I need to cut the frame around a detected person
+            # 1.1 I need to somehow get the bounding box coordinates of the person in order to properly cut the frame around them
+            # 2. Once I cut the frame around the person, I will then use a face detection model to detect the persons face
+            # 3. Once the face is detected, I will take it as a numpy array and store it in some database or csv file
+            # 4. For every new person detected, do steps 1/2 again, but before storing it, compare it to all the faces already in the csv file
+            # and then use cosine similarity to see if it closely matches anyones face, maybe it will keep trying for a set number of frames to see
+            # if any of them match well enough because maybe only 1 frame might not be enough to tell
+            # 5. repeat for every person/new person
+            # 6. If the similarity is high enough (idk maybe like 80 or 90 % similar) then say that all the info from that person gets turned to the other
+            # ex. if ID 4 closely matches ID 3, we say anything with ID 4 now becomes ID 3
+
+
+            #
+
 
             labels = [
                 f"# {tracker_id} {conf:.2f}"
