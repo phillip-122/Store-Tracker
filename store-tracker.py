@@ -192,7 +192,15 @@ if __name__  == "__main__":
             # [     384.67      701.37      478.85      786.96]
             # [     990.59      687.06      1058.6      763.17]]
 
-            # If I loop through it, then each element will be a different person tracked and then I can crop the frame around them and it will be easiert
+            # If I loop through it, then each element will be a different person tracked and then I can crop the frame around them and it will be easier
+
+            for xyxy, tracker_id in zip(detections.xyxy, detections.tracker_id):
+                x1, y1, x2, y2 = map(int, xyxy)
+                personCropped = frame[y1:y2, x1:x2] #This crops the frame to just show whichever id it is at, we will then
+                
+                
+                
+
 
             labels = [
                 f"# {tracker_id} {conf:.2f}"
