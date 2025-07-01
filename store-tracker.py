@@ -1,3 +1,4 @@
+import csv
 import argparse
 from ultralytics import YOLO
 import supervision as sv
@@ -68,6 +69,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     return parsar.parse_args()
 
+
 if __name__  == "__main__":
     args = parse_arguments()
 
@@ -114,6 +116,15 @@ if __name__  == "__main__":
     crossedOut = set()
     exitTimes = {}
 
+
+    #For the CSV file we need the following rows/columns (maybe more idk yet): ID #, Entry Time, Exit Time, Total Time, Valid Entrance
+    # Valid Entrance is for when we first detect someone in the middle of the store
+
+    headers = ["ID", "Entry Time", "Exit Time", "Total Time", "Valid Entrance"]
+
+    with open("customer_log.csv", 'w') as customerLog:
+        csvWriter = csv.writer(customerLog)
+        csvWriter.writerow(headers)
     
     with sv.VideoSink(target_path=targetPath, video_info=videoInfo) as sink:
         for frame in frameGenerator:
@@ -170,7 +181,13 @@ if __name__  == "__main__":
 
             print(entryTimes)
             print(exitTimes)
-                
+            
+            
+            
+
+
+
+
             #What I need to do to get the faces
             # 1. I need to cut the frame around a detected person
             # 1.1 I need to somehow get the bounding box coordinates of the person in order to properly cut the frame around them
@@ -197,9 +214,8 @@ if __name__  == "__main__":
             for xyxy, tracker_id in zip(detections.xyxy, detections.tracker_id):
                 x1, y1, x2, y2 = map(int, xyxy)
                 personCropped = frame[y1:y2, x1:x2] #This crops the frame to just show whichever id it is at, we will then
-                cv.imwrite(f"cropped_person_{int(tracker_id)}.jpg", personCropped)
+                # cv.imwrite(f"cropped_person_{int(tracker_id)}.jpg", personCropped)
                 
-            break
                 
 
 
