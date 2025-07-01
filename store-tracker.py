@@ -197,8 +197,9 @@ if __name__  == "__main__":
             for xyxy, tracker_id in zip(detections.xyxy, detections.tracker_id):
                 x1, y1, x2, y2 = map(int, xyxy)
                 personCropped = frame[y1:y2, x1:x2] #This crops the frame to just show whichever id it is at, we will then
+                cv.imwrite(f"cropped_person_{int(tracker_id)}.jpg", personCropped)
                 
-                
+            break
                 
 
 
