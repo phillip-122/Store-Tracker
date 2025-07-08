@@ -31,6 +31,13 @@ glassesZone = np.array([
     [660, 740]
 ])
 
+legitEntryZone = np.array([
+    [310, 0],
+    [1919, 0],
+    [1919, 1079],
+    [310, 1079]
+])
+
 
 #for just date
 # dateZone = np.array([
@@ -70,6 +77,10 @@ def parse_arguments() -> argparse.Namespace:
     return parsar.parse_args()
 
 
+def totalTimeCalc(entryTime, exitTime):
+    print("HALLLLOLOOOO")
+
+
 if __name__  == "__main__":
     args = parse_arguments()
 
@@ -106,6 +117,7 @@ if __name__  == "__main__":
 
     workerZoneOne = sv.PolygonZone(polygon=workerZoneOne)
     glassesZone = sv.PolygonZone(polygon=glassesZone)
+    legitEntryZone = sv.PolygonZone(polygon=legitEntryZone)
 
     #uncomment if you want to see where the bounding boxes to the date/times are (also uncomment the matching stuff above/below)
     # dateZone = sv.PolygonZone(polygon=dateZone)
@@ -136,6 +148,7 @@ if __name__  == "__main__":
             workerZoneOneTriggered = np.invert(workerZoneOneTriggered)
             detections = detections[workerZoneOneTriggered]
             # detections = detections[glassesZone.trigger(detections)]
+            # detections = detections[legitEntryZone.trigger(detections)]
             detections = byteTrack.update_with_detections(detections=detections)
             
             #crossingIn/Out is a tuple with elements of people going in and out, it has 2 elements, both arrays such as (array([False, False]), array([False, True]))
@@ -164,7 +177,7 @@ if __name__  == "__main__":
             ocrTime = pytesseract.image_to_string(timeZoneCropped)
 
             for tracker_id in crossingIn.tracker_id:
-                tracker_id = int(tracker_id)
+                tracker_id = int(tracker_id) #we do this because it is a np.int64, but it is easier to look at if it is a regular integer
                 ocrTime = ocrTime.strip()
                 if tracker_id not in crossedIn:
                     print(f"ID {tracker_id} entered the store at {ocrTime}")
@@ -181,10 +194,28 @@ if __name__  == "__main__":
 
             print(entryTimes)
             print(exitTimes)
-            
-            
-            
 
+            if len(entryTimes) != 0 and len(exitTimes) != 0:
+                totalTimeCalc(entryTimes, exitTimes)
+                print("HIIIIII")
+            
+            
+            legitEntry = legitEntryZone.trigger(detections)
+            legitEntry = detections[legitEntry]
+
+            legitimateEntry = {}
+
+            for tracker_id in legitEntry.tracker_id:
+                tracker_id = int(tracker_id)
+                if tracker_id in crossedIn:
+                    legitimateEntry[tracker_id] = True
+                    print(f"{tracker_id} entered legitimately")
+                else:
+                    legitimateEntry.setdefault(tracker_id, False)
+                    print(f"{tracker_id} entered  NOT legitimately")
+
+            print(legitimateEntry)
+    
 
 
 
@@ -233,6 +264,7 @@ if __name__  == "__main__":
             annotatedFrame = sv.draw_line(annotatedFrame, start=lineTop, end=lineBottom, color=sv.Color.RED, thickness=thickness)
             annotatedFrame = sv.draw_polygon(annotatedFrame, polygon=workerZoneOne.polygon, color=sv.Color.RED)
             annotatedFrame = sv.draw_polygon(annotatedFrame, polygon=glassesZone.polygon, color=sv.Color.GREEN)
+            annotatedFrame = sv.draw_polygon(annotatedFrame, polygon=legitEntryZone.polygon, color = sv.Color.BLACK)
 
             #uncomment if you want to see where the bounding boxes to the date/times are
             # annotatedFrame = sv.draw_polygon(annotatedFrame, polygon=dateZone.polygon, color=sv.Color.BLUE)
