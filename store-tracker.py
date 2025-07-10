@@ -123,20 +123,19 @@ if __name__  == "__main__":
     # dateZone = sv.PolygonZone(polygon=dateZone)
     # timeZone = sv.PolygonZone(polygon=timeZone)
 
+    totalCustomers = set()
     crossedIn = set()
     entryTimes = {}
     crossedOut = set()
     exitTimes = {}
+    legitimateEntry = {}
+
 
 
     #For the CSV file we need the following rows/columns (maybe more idk yet): ID #, Entry Time, Exit Time, Total Time, Valid Entrance
     # Valid Entrance is for when we first detect someone in the middle of the store
 
-    headers = ["ID", "Entry Time", "Exit Time", "Total Time", "Valid Entrance"]
 
-    with open("customer_log.csv", 'w') as customerLog:
-        csvWriter = csv.writer(customerLog)
-        csvWriter.writerow(headers)
     
     with sv.VideoSink(target_path=targetPath, video_info=videoInfo) as sink:
         for frame in frameGenerator:
@@ -147,8 +146,6 @@ if __name__  == "__main__":
             workerZoneOneTriggered = workerZoneOne.trigger(detections) # This returns as a numpy ndarray so we can use np.invert to only show the ones outside the box
             workerZoneOneTriggered = np.invert(workerZoneOneTriggered)
             detections = detections[workerZoneOneTriggered]
-            # detections = detections[glassesZone.trigger(detections)]
-            # detections = detections[legitEntryZone.trigger(detections)]
             detections = byteTrack.update_with_detections(detections=detections)
             
             #crossingIn/Out is a tuple with elements of people going in and out, it has 2 elements, both arrays such as (array([False, False]), array([False, True]))
@@ -176,6 +173,24 @@ if __name__  == "__main__":
             ocrDate = pytesseract.image_to_string(dateZoneCropped)
             ocrTime = pytesseract.image_to_string(timeZoneCropped)
 
+
+            legitEntry = legitEntryZone.trigger(detections)
+            legitEntry = detections[legitEntry]
+
+
+            for tracker_id in legitEntry.tracker_id:
+                tracker_id = int(tracker_id)
+                if tracker_id in crossedIn:
+                    legitimateEntry[tracker_id] = True
+                    print(f"{tracker_id} entered legitimately")
+                else:
+                    legitimateEntry.setdefault(tracker_id, False)
+                    print(f"{tracker_id} entered  NOT legitimately")
+
+            print(legitimateEntry)
+
+            #Maybe I will add something so that if someone is not a legit entry, then I will take the time from when we first see them
+
             for tracker_id in crossingIn.tracker_id:
                 tracker_id = int(tracker_id) #we do this because it is a np.int64, but it is easier to look at if it is a regular integer
                 ocrTime = ocrTime.strip()
@@ -200,23 +215,8 @@ if __name__  == "__main__":
                 print("HIIIIII")
             
             
-            legitEntry = legitEntryZone.trigger(detections)
-            legitEntry = detections[legitEntry]
-
-            legitimateEntry = {}
-
-            for tracker_id in legitEntry.tracker_id:
-                tracker_id = int(tracker_id)
-                if tracker_id in crossedIn:
-                    legitimateEntry[tracker_id] = True
-                    print(f"{tracker_id} entered legitimately")
-                else:
-                    legitimateEntry.setdefault(tracker_id, False)
-                    print(f"{tracker_id} entered  NOT legitimately")
-
-            print(legitimateEntry)
+            #I need to add a thing where whenever someone is detected I add them to a set
     
-
 
 
             #What I need to do to get the faces
@@ -232,7 +232,10 @@ if __name__  == "__main__":
             # ex. if ID 4 closely matches ID 3, we say anything with ID 4 now becomes ID 3
 
 
-            print(detections.xyxy)
+            for tracker_id in detections.tracker_id:
+                tracker_id = int(tracker_id)
+                totalCustomers.add(tracker_id)
+
             #prints something like
             # [[     1075.6      622.46      1179.7      975.01]
             # [     333.28      535.39      431.53      778.53]
@@ -283,8 +286,29 @@ if __name__  == "__main__":
                 break
 
 
-    cv.destroyAllWindows()
+        cv.destroyAllWindows()
 
+
+        #headers = ["ID", "Entry Time", "Exit Time", "Total Time", "Legitimate Entrance"]
+        #           check       check          check                       check
+
+
+        totalCustomers = list(totalCustomers)
+
+        headers = ["ID", "Entry Time", "Exit Time", "Total Time", "Legitimate Entrance"]
+
+
+        with open("customer_log.csv", 'w', newline="") as customerLog:
+            csvWriter = csv.writer(customerLog)
+            csvWriter.writerow(headers)
+                    
+            for tracker_id in totalCustomers:
+
+                entry = entryTimes.get(tracker_id, "N/A")
+                exit = exitTimes.get(tracker_id, "N/A")
+                legit = legitimateEntry.get(tracker_id, "N/A")
+
+                csvWriter.writerow([tracker_id, entry, exit, "TODO", legit])
 
 #To do face detection I think I can do something semi-similar to what I did with the time but slightly different approach, I think I can cut the frame
 # around each ID (or just one for now) and then I can use a face tracker somehow, then with the face tracker I will save the face as a numpy array or
