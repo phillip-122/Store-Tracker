@@ -5,6 +5,7 @@ import supervision as sv
 import cv2 as cv
 import numpy as np
 import pytesseract
+from datetime import datetime
 
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
@@ -12,8 +13,8 @@ pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tessera
 filePath = r"C:\Users\PHILLIP\Downloads\merged_trimmed_short - Made with Clipchamp.mp4"
 targetPath = "C:\\Users\\PHILLIP\\Desktop\\Code Projects\\python\\Store-Tracker\\output.mp4"
 
-lineTop = sv.Point(x=300, y=0) #make x 150
-lineBottom = sv.Point(x=300, y=900)
+lineTop = sv.Point(x=200, y=0) #make x 150
+lineBottom = sv.Point(x=200, y=900)
 
 workerZoneOne = np.array([
     [0, 1079],
@@ -78,7 +79,33 @@ def parse_arguments() -> argparse.Namespace:
 
 
 def totalTimeCalc(entryTime, exitTime):
-    print("HALLLLOLOOOO")
+    totalDuration = {}
+
+    for tracker_id in entryTime.keys() | exitTime.keys(): 
+            entryTimeString = entryTime.get(tracker_id)
+            exitTimeString = exitTime.get(tracker_id)
+            formatString = "%H:%M:%S"
+
+            if entryTimeString and exitTimeString:
+                try:
+                    entry = datetime.strptime(entryTimeString, formatString)
+                    exit = datetime.strptime(exitTimeString, formatString)
+                    duration = exit - entry
+
+                    #This is so I can format the output so it says _ Hours _ Minutes _ Seconds
+
+                    totalSeconds = int(duration.total_seconds())
+                    hours = totalSeconds // 3600
+                    minutes = (totalSeconds % 3600) // 60
+                    seconds = totalSeconds % 60
+
+                    totalDuration[tracker_id] = (f"{hours} hours {minutes} minutes {seconds} seconds")
+                except Exception as e:
+                    print(f"Error getting times for ID {tracker_id}: {e}")
+            else:
+                totalDuration[tracker_id] = "N/A"
+
+    return totalDuration
 
 
 if __name__  == "__main__":
@@ -129,13 +156,6 @@ if __name__  == "__main__":
     crossedOut = set()
     exitTimes = {}
     legitimateEntry = {}
-
-
-
-    #For the CSV file we need the following rows/columns (maybe more idk yet): ID #, Entry Time, Exit Time, Total Time, Valid Entrance
-    # Valid Entrance is for when we first detect someone in the middle of the store
-
-
     
     with sv.VideoSink(target_path=targetPath, video_info=videoInfo) as sink:
         for frame in frameGenerator:
@@ -173,10 +193,8 @@ if __name__  == "__main__":
             ocrDate = pytesseract.image_to_string(dateZoneCropped)
             ocrTime = pytesseract.image_to_string(timeZoneCropped)
 
-
             legitEntry = legitEntryZone.trigger(detections)
             legitEntry = detections[legitEntry]
-
 
             for tracker_id in legitEntry.tracker_id:
                 tracker_id = int(tracker_id)
@@ -187,7 +205,7 @@ if __name__  == "__main__":
                     legitimateEntry.setdefault(tracker_id, False)
                     print(f"{tracker_id} entered  NOT legitimately")
 
-            print(legitimateEntry)
+            # print(legitimateEntry)
 
             #Maybe I will add something so that if someone is not a legit entry, then I will take the time from when we first see them
 
@@ -209,16 +227,7 @@ if __name__  == "__main__":
 
             print(entryTimes)
             print(exitTimes)
-
-            if len(entryTimes) != 0 and len(exitTimes) != 0:
-                totalTimeCalc(entryTimes, exitTimes)
-                print("HIIIIII")
-            
-            
-            #I need to add a thing where whenever someone is detected I add them to a set
-    
-
-
+                     
             #What I need to do to get the faces
             # 1. I need to cut the frame around a detected person
             # 1.1 I need to somehow get the bounding box coordinates of the person in order to properly cut the frame around them
@@ -231,12 +240,11 @@ if __name__  == "__main__":
             # 6. If the similarity is high enough (idk maybe like 80 or 90 % similar) then say that all the info from that person gets turned to the other
             # ex. if ID 4 closely matches ID 3, we say anything with ID 4 now becomes ID 3
 
-
             for tracker_id in detections.tracker_id:
                 tracker_id = int(tracker_id)
                 totalCustomers.add(tracker_id)
 
-            #prints something like
+            #detections.xyxy prints something like
             # [[     1075.6      622.46      1179.7      975.01]
             # [     333.28      535.39      431.53      778.53]
             # [     254.77      652.97      301.02      755.86]
@@ -250,8 +258,6 @@ if __name__  == "__main__":
                 personCropped = frame[y1:y2, x1:x2] #This crops the frame to just show whichever id it is at, we will then
                 # cv.imwrite(f"cropped_person_{int(tracker_id)}.jpg", personCropped)
                 
-                
-
 
             labels = [
                 f"# {tracker_id} {conf:.2f}"
@@ -287,11 +293,8 @@ if __name__  == "__main__":
 
 
         cv.destroyAllWindows()
-
-
-        #headers = ["ID", "Entry Time", "Exit Time", "Total Time", "Legitimate Entrance"]
-        #           check       check          check                       check
-
+        
+        totalDuration = totalTimeCalc(entryTimes, exitTimes)
 
         totalCustomers = list(totalCustomers)
 
@@ -307,15 +310,11 @@ if __name__  == "__main__":
                 entry = entryTimes.get(tracker_id, "N/A")
                 exit = exitTimes.get(tracker_id, "N/A")
                 legit = legitimateEntry.get(tracker_id, "N/A")
+                duration = totalDuration.get(tracker_id, "N/A")
 
-                csvWriter.writerow([tracker_id, entry, exit, "TODO", legit])
+
+                csvWriter.writerow([tracker_id, entry, exit, duration, legit])
 
 #To do face detection I think I can do something semi-similar to what I did with the time but slightly different approach, I think I can cut the frame
 # around each ID (or just one for now) and then I can use a face tracker somehow, then with the face tracker I will save the face as a numpy array or
 # something. Then I will log it in a csv or some file to refer back to later.
-
-#I need to make a thing that 1. can extract the time from the screen, 2. say when a new ID appears say it appeared at that time, 3. When someone goes in/out
-# it needs to say like ID 42 entered at 3:07:41
-
-
-#maybe to bridge the info together I make a list or dictionary or something so that it says like 1. 0.8964 x1=612.8533 y1 = 767.7429 x2=934.3393 y2 = 986.6265
