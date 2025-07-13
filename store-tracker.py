@@ -315,6 +315,8 @@ if __name__  == "__main__":
 
                 csvWriter.writerow([tracker_id, entry, exit, duration, legit])
 
+#After doing some more stuff, I need to add testing/edge case stuff
+
 #To do face detection I think I can do something semi-similar to what I did with the time but slightly different approach, I think I can cut the frame
 # around each ID (or just one for now) and then I can use a face tracker somehow, then with the face tracker I will save the face as a numpy array or
 # something. Then I will log it in a csv or some file to refer back to later.
