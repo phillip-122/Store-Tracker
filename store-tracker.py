@@ -13,7 +13,7 @@ pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tessera
 filePath = r"C:\Users\PHILLIP\Downloads\merged_trimmed_short - Made with Clipchamp.mp4"
 targetPath = "C:\\Users\\PHILLIP\\Desktop\\Code Projects\\python\\Store-Tracker\\output.mp4"
 
-lineTop = sv.Point(x=200, y=0) #make x 150
+lineTop = sv.Point(x=200, y=0)
 lineBottom = sv.Point(x=200, y=900)
 
 workerZoneOne = np.array([
@@ -82,30 +82,31 @@ def totalTimeCalc(entryTime, exitTime):
     totalDuration = {}
 
     for tracker_id in entryTime.keys() | exitTime.keys(): 
-            entryTimeString = entryTime.get(tracker_id)
-            exitTimeString = exitTime.get(tracker_id)
-            formatString = "%H:%M:%S"
+        entryTimeString = entryTime.get(tracker_id)
+        exitTimeString = exitTime.get(tracker_id)
+        formatString = "%H:%M:%S"
 
-            if entryTimeString and exitTimeString:
-                try:
-                    entry = datetime.strptime(entryTimeString, formatString)
-                    exit = datetime.strptime(exitTimeString, formatString)
-                    duration = exit - entry
+        if entryTimeString and exitTimeString:
+            try:
+                entry = datetime.strptime(entryTimeString, formatString)
+                exit = datetime.strptime(exitTimeString, formatString)
+                duration = exit - entry
 
-                    #This is so I can format the output so it says _ Hours _ Minutes _ Seconds
+                #This is so I can format the output so it says _ Hours _ Minutes _ Seconds
 
-                    totalSeconds = int(duration.total_seconds())
-                    hours = totalSeconds // 3600
-                    minutes = (totalSeconds % 3600) // 60
-                    seconds = totalSeconds % 60
+                totalSeconds = int(duration.total_seconds())
+                hours = totalSeconds // 3600
+                minutes = (totalSeconds % 3600) // 60
+                seconds = totalSeconds % 60
 
-                    totalDuration[tracker_id] = (f"{hours} hours {minutes} minutes {seconds} seconds")
-                except Exception as e:
-                    print(f"Error getting times for ID {tracker_id}: {e}")
-            else:
-                totalDuration[tracker_id] = "N/A"
+                totalDuration[tracker_id] = (f"{hours} hours {minutes} minutes {seconds} seconds")
+            except Exception as e:
+                print(f"Error getting times for ID {tracker_id}: {e}")
+        else:
+            totalDuration[tracker_id] = "N/A"
 
     return totalDuration
+
 
 
 if __name__  == "__main__":
@@ -143,7 +144,7 @@ if __name__  == "__main__":
     )
 
     workerZoneOne = sv.PolygonZone(polygon=workerZoneOne)
-    glassesZone = sv.PolygonZone(polygon=glassesZone)
+    glassesZone = sv.PolygonZone(polygon=glassesZone, triggering_anchors=[sv.Position.TOP_CENTER])
     legitEntryZone = sv.PolygonZone(polygon=legitEntryZone)
 
     #uncomment if you want to see where the bounding boxes to the date/times are (also uncomment the matching stuff above/below)
@@ -156,6 +157,11 @@ if __name__  == "__main__":
     crossedOut = set()
     exitTimes = {}
     legitimateEntry = {}
+    glassesZoneInSeen = set()
+    glassesZoneOutSeen = set()
+    glassesZoneInDict = {}
+    glassesZoneOutDict = {}
+
     
     with sv.VideoSink(target_path=targetPath, video_info=videoInfo) as sink:
         for frame in frameGenerator:
@@ -167,6 +173,12 @@ if __name__  == "__main__":
             workerZoneOneTriggered = np.invert(workerZoneOneTriggered)
             detections = detections[workerZoneOneTriggered]
             detections = byteTrack.update_with_detections(detections=detections)
+
+
+            # adds every seens ID into a set so that we can use it later in the CSV
+            for tracker_id in detections.tracker_id:
+                tracker_id = int(tracker_id)
+                totalCustomers.add(tracker_id)
             
             #crossingIn/Out is a tuple with elements of people going in and out, it has 2 elements, both arrays such as (array([False, False]), array([False, True]))
             # so what I did was turn it into a list of only one element (for in we take element 0 and out is 1) then I took that element and did detections
@@ -192,6 +204,8 @@ if __name__  == "__main__":
 
             ocrDate = pytesseract.image_to_string(dateZoneCropped)
             ocrTime = pytesseract.image_to_string(timeZoneCropped)
+            ocrTime = ocrTime.strip()
+
 
             legitEntry = legitEntryZone.trigger(detections)
             legitEntry = detections[legitEntry]
@@ -211,7 +225,6 @@ if __name__  == "__main__":
 
             for tracker_id in crossingIn.tracker_id:
                 tracker_id = int(tracker_id) #we do this because it is a np.int64, but it is easier to look at if it is a regular integer
-                ocrTime = ocrTime.strip()
                 if tracker_id not in crossedIn:
                     print(f"ID {tracker_id} entered the store at {ocrTime}")
                     entryTimes[tracker_id] = ocrTime
@@ -219,14 +232,39 @@ if __name__  == "__main__":
 
             for tracker_id in crossingOut.tracker_id:
                 tracker_id = int(tracker_id)
-                ocrTime = ocrTime.strip()
                 if tracker_id not in crossedOut:
                     print(f"ID {tracker_id} left the store at {ocrTime}")
-                    exitTimes[tracker_id] = f"{ocrTime}"
+                    exitTimes[tracker_id] = ocrTime
                     crossedOut.add(tracker_id)
 
             print(entryTimes)
             print(exitTimes)
+
+
+            #I need to change the anchor position to the top center because it isn't tracking correctly if the person isn't fully in the zone
+            # glassesZone.anchor = sv.Position.TOP_CENTER
+            glassesZoneIn = glassesZone.trigger(detections)
+            glassesZoneIn = detections[glassesZoneIn]
+
+            for tracker_id in glassesZoneIn.tracker_id:
+                tracker_id = int(tracker_id)
+                if tracker_id not in glassesZoneInSeen:
+                    glassesZoneInDict[tracker_id] = ocrTime
+                    glassesZoneInSeen.add(tracker_id)
+
+            #For glassesZone exitTime
+
+            glassesZoneOut = glassesZone.trigger(detections)
+            glassesZoneOut = np.invert(glassesZoneOut)
+            glassesZoneOut = detections[glassesZoneOut]
+
+            for tracker_id in glassesZoneOut.tracker_id:
+                tracker_id = int(tracker_id)
+                if tracker_id in glassesZoneInSeen and tracker_id not in glassesZoneOutSeen:
+                    glassesZoneOutDict[tracker_id] = ocrTime
+                    glassesZoneOutSeen.add(tracker_id)
+
+            # Now I will need to add something for when an ID disappears while it is still in the glassesZone
                      
             #What I need to do to get the faces
             # 1. I need to cut the frame around a detected person
@@ -239,10 +277,6 @@ if __name__  == "__main__":
             # 5. repeat for every person/new person
             # 6. If the similarity is high enough (idk maybe like 80 or 90 % similar) then say that all the info from that person gets turned to the other
             # ex. if ID 4 closely matches ID 3, we say anything with ID 4 now becomes ID 3
-
-            for tracker_id in detections.tracker_id:
-                tracker_id = int(tracker_id)
-                totalCustomers.add(tracker_id)
 
             #detections.xyxy prints something like
             # [[     1075.6      622.46      1179.7      975.01]
@@ -295,10 +329,11 @@ if __name__  == "__main__":
         cv.destroyAllWindows()
         
         totalDuration = totalTimeCalc(entryTimes, exitTimes)
+        glassesZoneDuration = totalTimeCalc(glassesZoneInDict, glassesZoneOutDict)
 
         totalCustomers = list(totalCustomers)
 
-        headers = ["ID", "Entry Time", "Exit Time", "Total Time", "Legitimate Entrance"]
+        headers = ["ID", "Entry Time", "Exit Time", "Total Time in Store", "Total Time Browsing Glasses", "Legitimate Entrance"]
 
 
         with open("customer_log.csv", 'w', newline="") as customerLog:
@@ -310,10 +345,11 @@ if __name__  == "__main__":
                 entry = entryTimes.get(tracker_id, "N/A")
                 exit = exitTimes.get(tracker_id, "N/A")
                 legit = legitimateEntry.get(tracker_id, "N/A")
-                duration = totalDuration.get(tracker_id, "N/A")
+                totalCustomerDuration = totalDuration.get(tracker_id, "N/A")
+                totalGlassesZoneDuration = glassesZoneDuration.get(tracker_id, "N/A")
 
 
-                csvWriter.writerow([tracker_id, entry, exit, duration, legit])
+                csvWriter.writerow([tracker_id, entry, exit, totalCustomerDuration, totalGlassesZoneDuration, legit])
 
 #After doing some more stuff, I need to add testing/edge case stuff
 
