@@ -1,5 +1,5 @@
 import csv
-import argparse
+import re
 from ultralytics import YOLO
 import supervision as sv
 import cv2 as cv
@@ -186,6 +186,13 @@ if __name__  == "__main__":
             ocrDate = pytesseract.image_to_string(dateZoneCropped)
             ocrTime = pytesseract.image_to_string(timeZoneCropped)
             ocrTime = ocrTime.strip()
+
+            #This ensures that the OCR time is in the correct HH:MM:SS format and not in a messed up format
+            match = re.match(r"(\d{2}):(\d{2}):(\d{2})", ocrTime)
+            if match:
+                ocrTime = ":".join(match.groups())
+            else:
+                ocrTime = "N/A"
 
             # adds every seens ID into a set so that we can use it later in the CSV and also adds a lastseen dict so if an id disappears before leaving
             #we will take that lastseen time as their exit time. It also adds a firstseen dict so that even if someone is not a legit entry
