@@ -33,10 +33,10 @@ glassesZone = np.array([
 ])
 
 legitEntryZone = np.array([
-    [310, 0],
+    [220, 0],
     [1919, 0],
     [1919, 1079],
-    [310, 1079]
+    [220, 1079]
 ])
 
 
@@ -62,26 +62,10 @@ dateW, dateH = 270, 70
 timeX, timeY = 1660, 1000
 timeW, timeH = 220, 70
 
-
-
-def parse_arguments() -> argparse.Namespace:
-    parsar = argparse.ArgumentParser(
-        description="Store customer tracking"
-    )
-    parsar.add_argument(
-        "--filePath",
-        required=False,
-        default=filePath,
-        help="Path to the source video file",
-        type=str,
-    )
-    return parsar.parse_args()
-
-
 def totalTimeCalc(entryTime, exitTime):
     totalDuration = {}
 
-    for tracker_id in entryTime.keys() | exitTime.keys(): 
+    for tracker_id in entryTime.keys() | exitTime.keys(): #It expects the entry/exit times dict to be in {id: HH:MM:SS} formats
         entryTimeString = entryTime.get(tracker_id)
         exitTimeString = exitTime.get(tracker_id)
         formatString = "%H:%M:%S"
@@ -110,12 +94,7 @@ def totalTimeCalc(entryTime, exitTime):
 
 
 if __name__  == "__main__":
-    args = parse_arguments()
-
-    videoInfo = sv.VideoInfo.from_video_path(args.filePath)
-
-    print(videoInfo.fps)
-    print(videoInfo.resolution_wh) #1920x1080
+    videoInfo = sv.VideoInfo.from_video_path(filePath)
 
     lineZone = sv.LineZone(start=lineTop, end=lineBottom)
     
@@ -123,7 +102,7 @@ if __name__  == "__main__":
 
     byteTrack = sv.ByteTrack(frame_rate=videoInfo.fps) 
 
-    frameGenerator = sv.get_video_frames_generator(args.filePath)
+    frameGenerator = sv.get_video_frames_generator(filePath)
 
     thickness = sv.calculate_optimal_line_thickness(resolution_wh=videoInfo.resolution_wh)
     textScale = sv.calculate_optimal_text_scale(resolution_wh=videoInfo.resolution_wh)
@@ -144,7 +123,11 @@ if __name__  == "__main__":
     )
 
     workerZoneOne = sv.PolygonZone(polygon=workerZoneOne)
-    glassesZone = sv.PolygonZone(polygon=glassesZone, triggering_anchors=[sv.Position.TOP_CENTER])
+    glassesZone = sv.PolygonZone(polygon=glassesZone, triggering_anchors=[sv.Position.TOP_CENTER]) #I needed to change the anchor point so it counts as 
+                                                                                                   #In the zone if the top center is in it because there
+                                                                                                   #are lots of time that it should be tracking the id but
+                                                                                                   #since only the top half of the person is in the zone it
+                                                                                                   #doesn't count it
     legitEntryZone = sv.PolygonZone(polygon=legitEntryZone)
 
     #uncomment if you want to see where the bounding boxes to the date/times are (also uncomment the matching stuff above/below)
@@ -153,14 +136,16 @@ if __name__  == "__main__":
 
     totalCustomers = set()
     crossedIn = set()
-    entryTimes = {}
     crossedOut = set()
-    exitTimes = {}
-    legitimateEntry = {}
     glassesZoneInSeen = set()
     glassesZoneOutSeen = set()
+    entryTimes = {}
+    exitTimes = {}
+    legitimateEntry = {}
     glassesZoneInDict = {}
     glassesZoneOutDict = {}
+    firstSeenDict = {}
+    lastSeenDict = {}
 
     
     with sv.VideoSink(target_path=targetPath, video_info=videoInfo) as sink:
@@ -170,15 +155,11 @@ if __name__  == "__main__":
 
             detections = sv.Detections.from_ultralytics(result)
             workerZoneOneTriggered = workerZoneOne.trigger(detections) # This returns as a numpy ndarray so we can use np.invert to only show the ones outside the box
+            #if we were to print workerZoneOneTriggered it would look something like: [True False True False False]
             workerZoneOneTriggered = np.invert(workerZoneOneTriggered)
-            detections = detections[workerZoneOneTriggered]
+            detections = detections[workerZoneOneTriggered] #This keeps only the True ID's and discards the false ones
             detections = byteTrack.update_with_detections(detections=detections)
 
-
-            # adds every seens ID into a set so that we can use it later in the CSV
-            for tracker_id in detections.tracker_id:
-                tracker_id = int(tracker_id)
-                totalCustomers.add(tracker_id)
             
             #crossingIn/Out is a tuple with elements of people going in and out, it has 2 elements, both arrays such as (array([False, False]), array([False, True]))
             # so what I did was turn it into a list of only one element (for in we take element 0 and out is 1) then I took that element and did detections
@@ -206,6 +187,16 @@ if __name__  == "__main__":
             ocrTime = pytesseract.image_to_string(timeZoneCropped)
             ocrTime = ocrTime.strip()
 
+            # adds every seens ID into a set so that we can use it later in the CSV and also adds a lastseen dict so if an id disappears before leaving
+            #we will take that lastseen time as their exit time. It also adds a firstseen dict so that even if someone is not a legit entry
+            #we can still estimate their total time spent
+            for tracker_id in detections.tracker_id:
+                tracker_id = int(tracker_id) #we do this because it is a np.int64, but it is easier to look at/ work with if it is a regular integer
+                lastSeenDict[tracker_id] = ocrTime
+                totalCustomers.add(tracker_id)
+
+                if tracker_id not in firstSeenDict:
+                    firstSeenDict[tracker_id] = ocrTime
 
             legitEntry = legitEntryZone.trigger(detections)
             legitEntry = detections[legitEntry]
@@ -218,13 +209,10 @@ if __name__  == "__main__":
                 else:
                     legitimateEntry.setdefault(tracker_id, False)
                     print(f"{tracker_id} entered  NOT legitimately")
-
-            # print(legitimateEntry)
-
-            #Maybe I will add something so that if someone is not a legit entry, then I will take the time from when we first see them
+                    
 
             for tracker_id in crossingIn.tracker_id:
-                tracker_id = int(tracker_id) #we do this because it is a np.int64, but it is easier to look at if it is a regular integer
+                tracker_id = int(tracker_id)
                 if tracker_id not in crossedIn:
                     print(f"ID {tracker_id} entered the store at {ocrTime}")
                     entryTimes[tracker_id] = ocrTime
@@ -237,12 +225,7 @@ if __name__  == "__main__":
                     exitTimes[tracker_id] = ocrTime
                     crossedOut.add(tracker_id)
 
-            print(entryTimes)
-            print(exitTimes)
-
-
-            #I need to change the anchor position to the top center because it isn't tracking correctly if the person isn't fully in the zone
-            # glassesZone.anchor = sv.Position.TOP_CENTER
+            # For getting the time that someone enters the glassesZone
             glassesZoneIn = glassesZone.trigger(detections)
             glassesZoneIn = detections[glassesZoneIn]
 
@@ -252,7 +235,7 @@ if __name__  == "__main__":
                     glassesZoneInDict[tracker_id] = ocrTime
                     glassesZoneInSeen.add(tracker_id)
 
-            #For glassesZone exitTime
+            # For getting the time that someone exits the glassesZone
 
             glassesZoneOut = glassesZone.trigger(detections)
             glassesZoneOut = np.invert(glassesZoneOut)
@@ -263,20 +246,6 @@ if __name__  == "__main__":
                 if tracker_id in glassesZoneInSeen and tracker_id not in glassesZoneOutSeen:
                     glassesZoneOutDict[tracker_id] = ocrTime
                     glassesZoneOutSeen.add(tracker_id)
-
-            # Now I will need to add something for when an ID disappears while it is still in the glassesZone
-                     
-            #What I need to do to get the faces
-            # 1. I need to cut the frame around a detected person
-            # 1.1 I need to somehow get the bounding box coordinates of the person in order to properly cut the frame around them
-            # 2. Once I cut the frame around the person, I will then use a face detection model to detect the persons face
-            # 3. Once the face is detected, I will take it as a numpy array and store it in some database or csv file
-            # 4. For every new person detected, do steps 1/2 again, but before storing it, compare it to all the faces already in the csv file
-            # and then use cosine similarity to see if it closely matches anyones face, maybe it will keep trying for a set number of frames to see
-            # if any of them match well enough because maybe only 1 frame might not be enough to tell
-            # 5. repeat for every person/new person
-            # 6. If the similarity is high enough (idk maybe like 80 or 90 % similar) then say that all the info from that person gets turned to the other
-            # ex. if ID 4 closely matches ID 3, we say anything with ID 4 now becomes ID 3
 
             #detections.xyxy prints something like
             # [[     1075.6      622.46      1179.7      975.01]
@@ -319,14 +288,22 @@ if __name__  == "__main__":
                 scene=annotatedFrame, detections=detections, labels=labels
             )
 
-            sink.write_frame(frame=annotatedFrame)
+            sink.write_frame(frame=annotatedFrame) #This adds the frame so we can watch the output as a video
 
             cv.imshow("annotated_frame", annotatedFrame)
             if cv.waitKey(1) == ord("q"):
                 break
 
-
         cv.destroyAllWindows()
+
+        for tracker_id in totalCustomers:
+            if tracker_id not in entryTimes:
+                entryTimes[tracker_id] = firstSeenDict.get(tracker_id, "N/A")
+        
+            if tracker_id not in exitTimes:
+                exitTimes[tracker_id] = lastSeenDict.get(tracker_id, "N/A")
+            if tracker_id not in glassesZoneOutDict:
+                glassesZoneOutDict[tracker_id] = lastSeenDict.get(tracker_id, "N/A")
         
         totalDuration = totalTimeCalc(entryTimes, exitTimes)
         glassesZoneDuration = totalTimeCalc(glassesZoneInDict, glassesZoneOutDict)
