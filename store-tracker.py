@@ -26,7 +26,7 @@ workerZoneOne = np.array([
 glassesZone = np.array([
     [660, 0],
     [1919, 0],
-    [1919, 1050],
+    [1919, 1050], 
     [1300, 1919],
     [970, 830],
     [660, 740]
@@ -62,13 +62,26 @@ dateW, dateH = 270, 70
 timeX, timeY = 1660, 1000
 timeW, timeH = 220, 70
 
+def secondsToString(seconds):
+
+    seconds = int(seconds)
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    seconds = seconds % 60
+
+    secondsString = (f"{hours} hours {minutes} minutes {seconds} seconds")
+
+    return secondsString
+
 def totalTimeCalc(entryTime, exitTime):
     totalDuration = {}
+    totalDurationSeconds = 0
 
-    for tracker_id in entryTime.keys() | exitTime.keys(): #It expects the entry/exit times dict to be in {id: HH:MM:SS} formats
+    for tracker_id in entryTime.keys() | exitTime.keys(): #It expects the entry/exit times dict to be in {id: HH:MM:SS} format
         entryTimeString = entryTime.get(tracker_id)
         exitTimeString = exitTime.get(tracker_id)
         formatString = "%H:%M:%S"
+        totalSeconds = 0
 
         if entryTimeString and exitTimeString:
             try:
@@ -79,17 +92,18 @@ def totalTimeCalc(entryTime, exitTime):
                 #This is so I can format the output so it says _ Hours _ Minutes _ Seconds
 
                 totalSeconds = int(duration.total_seconds())
-                hours = totalSeconds // 3600
-                minutes = (totalSeconds % 3600) // 60
-                seconds = totalSeconds % 60
+                secondsString = secondsToString(totalSeconds)
 
-                totalDuration[tracker_id] = (f"{hours} hours {minutes} minutes {seconds} seconds")
+                totalDuration[tracker_id] = secondsString
+
+                totalDurationSeconds += totalSeconds
+                
             except Exception as e:
                 print(f"Error getting times for ID {tracker_id}: {e}")
         else:
             totalDuration[tracker_id] = "N/A"
 
-    return totalDuration
+    return totalDuration, totalDurationSeconds
 
 
 
@@ -312,8 +326,25 @@ if __name__  == "__main__":
             if tracker_id not in glassesZoneOutDict:
                 glassesZoneOutDict[tracker_id] = lastSeenDict.get(tracker_id, "N/A")
         
-        totalDuration = totalTimeCalc(entryTimes, exitTimes)
-        glassesZoneDuration = totalTimeCalc(glassesZoneInDict, glassesZoneOutDict)
+        totalDuration, totalDurationSeconds = totalTimeCalc(entryTimes, exitTimes)
+        glassesZoneDuration, totalGlassesZoneDurationSeconds = totalTimeCalc(glassesZoneInDict, glassesZoneOutDict)
+
+        print(glassesZoneDuration)
+
+        validGlassesZoneDuration = {}
+
+        for tracker_id, time in glassesZoneDuration.items():
+            if time != 'N/A':
+                validGlassesZoneDuration[tracker_id] = time
+
+        print(validGlassesZoneDuration)
+
+        averageTotalDuration = totalDurationSeconds / len(totalCustomers)
+        averageGlassesZoneDuration = totalGlassesZoneDurationSeconds / len(validGlassesZoneDuration)
+
+
+        print(averageTotalDuration)
+        print(averageGlassesZoneDuration)
 
         totalCustomers = list(totalCustomers)
 
