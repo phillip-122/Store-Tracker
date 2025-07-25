@@ -76,6 +76,7 @@ def secondsToString(seconds):
 def totalTimeCalc(entryTime, exitTime):
     totalDuration = {}
     totalDurationSeconds = 0
+    entryTimeHours = []
 
     for tracker_id in entryTime.keys() | exitTime.keys(): #It expects the entry/exit times dict to be in {id: HH:MM:SS} format
         entryTimeString = entryTime.get(tracker_id)
@@ -89,8 +90,9 @@ def totalTimeCalc(entryTime, exitTime):
                 exit = datetime.strptime(exitTimeString, formatString)
                 duration = exit - entry
 
-                #This is so I can format the output so it says _ Hours _ Minutes _ Seconds
+                entryTimeHours.append(entry.hour)
 
+                #This is so I can format the output so it says _ Hours _ Minutes _ Seconds
                 totalSeconds = int(duration.total_seconds())
                 secondsString = secondsToString(totalSeconds)
 
@@ -103,7 +105,7 @@ def totalTimeCalc(entryTime, exitTime):
         else:
             totalDuration[tracker_id] = "N/A"
 
-    return totalDuration, totalDurationSeconds
+    return totalDuration, totalDurationSeconds, entryTimeHours
 
 
 
@@ -226,23 +228,23 @@ if __name__  == "__main__":
                 tracker_id = int(tracker_id)
                 if tracker_id in crossedIn:
                     legitimateEntry[tracker_id] = True
-                    print(f"{tracker_id} entered legitimately")
+                    # print(f"{tracker_id} entered legitimately")
                 else:
                     legitimateEntry.setdefault(tracker_id, False)
-                    print(f"{tracker_id} entered  NOT legitimately")
+                    # print(f"{tracker_id} entered  NOT legitimately")
                     
 
             for tracker_id in crossingIn.tracker_id:
                 tracker_id = int(tracker_id)
                 if tracker_id not in crossedIn:
-                    print(f"ID {tracker_id} entered the store at {ocrTime}")
+                    # print(f"ID {tracker_id} entered the store at {ocrTime}")
                     entryTimes[tracker_id] = ocrTime
                     crossedIn.add(tracker_id)
 
             for tracker_id in crossingOut.tracker_id:
                 tracker_id = int(tracker_id)
                 if tracker_id not in crossedOut:
-                    print(f"ID {tracker_id} left the store at {ocrTime}")
+                    # print(f"ID {tracker_id} left the store at {ocrTime}")
                     exitTimes[tracker_id] = ocrTime
                     crossedOut.add(tracker_id)
 
@@ -326,10 +328,10 @@ if __name__  == "__main__":
             if tracker_id not in glassesZoneOutDict:
                 glassesZoneOutDict[tracker_id] = lastSeenDict.get(tracker_id, "N/A")
         
-        totalDuration, totalDurationSeconds = totalTimeCalc(entryTimes, exitTimes)
-        glassesZoneDuration, totalGlassesZoneDurationSeconds = totalTimeCalc(glassesZoneInDict, glassesZoneOutDict)
+        totalDuration, totalDurationSeconds, entryTimeHours = totalTimeCalc(entryTimes, exitTimes)
+        glassesZoneDuration, totalGlassesZoneDurationSeconds, _ = totalTimeCalc(glassesZoneInDict, glassesZoneOutDict)
 
-        print(glassesZoneDuration)
+        print(entryTimeHours)
 
         validGlassesZoneDuration = {}
 
@@ -337,14 +339,17 @@ if __name__  == "__main__":
             if time != 'N/A':
                 validGlassesZoneDuration[tracker_id] = time
 
-        print(validGlassesZoneDuration)
+        # print(validGlassesZoneDuration)
 
         averageTotalDuration = totalDurationSeconds / len(totalCustomers)
         averageGlassesZoneDuration = totalGlassesZoneDurationSeconds / len(validGlassesZoneDuration)
 
 
-        print(averageTotalDuration)
-        print(averageGlassesZoneDuration)
+        print(f"Average time spent in store: {averageTotalDuration}")
+        print(f"Average time spent browsing glasses: {averageGlassesZoneDuration}")
+
+        #I also want to make something that says when the peak store hours/time is. Maybe also display it in a plot
+        #I also want to do something that says like __ people stayed for 2 minutes, __ stayed for 10-20 minutes
 
         totalCustomers = list(totalCustomers)
 
@@ -367,7 +372,3 @@ if __name__  == "__main__":
                 csvWriter.writerow([tracker_id, entry, exit, totalCustomerDuration, totalGlassesZoneDuration, legit])
 
 #After doing some more stuff, I need to add testing/edge case stuff
-
-#To do face detection I think I can do something semi-similar to what I did with the time but slightly different approach, I think I can cut the frame
-# around each ID (or just one for now) and then I can use a face tracker somehow, then with the face tracker I will save the face as a numpy array or
-# something. Then I will log it in a csv or some file to refer back to later.
