@@ -6,6 +6,9 @@ import cv2 as cv
 import numpy as np
 import pytesseract
 from datetime import datetime
+from collections import Counter
+import matplotlib.pyplot as plt
+
 
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
@@ -319,6 +322,44 @@ if __name__  == "__main__":
 
         cv.destroyAllWindows()
 
+
+
+        totalCustomers = {i: True for i in range(1, 36)}
+
+        entryTimes = {
+            1: "09:03:22", 2: "09:17:45", 3: "09:55:10", 4: "10:06:33", 5: "10:21:18",
+            6: "10:42:07", 7: "10:57:59", 8: "11:08:12", 9: "11:27:48", 10: "11:35:12",
+            11: "11:49:07", 12: "12:01:19", 13: "12:17:44", 14: "12:28:33", 15: "12:40:59",
+            16: "12:55:14", 17: "13:07:23", 18: "13:19:38", 19: "13:33:15", 20: "13:47:22",
+            21: "14:02:11", 22: "14:19:43", 23: "14:35:56", 24: "14:51:18", 25: "15:04:05",
+            26: "15:17:47", 27: "15:30:59", 28: "15:45:36", 29: "16:02:20", 30: "16:17:48",
+            31: "16:33:15", 32: "16:47:59", 33: "17:02:45", 34: "17:16:39", 35: "17:29:50"
+        }
+
+        exitTimes = {
+            1: "09:15:01", 2: "09:29:40", 3: "10:03:58", 4: "10:21:12", 5: "10:37:44",
+            6: "10:55:02", 7: "11:03:17", 8: "11:19:25", 9: "11:44:35", 10: "11:57:01",
+            11: "12:05:19", 12: "12:26:54", 13: "12:42:13", 14: "12:52:47", 15: "13:03:11",
+            16: "13:18:49", 17: "13:29:56", 18: "13:47:22", 19: "14:01:50", 20: "14:15:29",
+            21: "14:33:42", 22: "14:45:12", 23: "14:59:57", 24: "15:14:30", 25: "15:28:19",
+            26: "15:41:38", 27: "15:59:01", 28: "16:14:08", 29: "16:27:11", 30: "16:43:50",
+            31: "16:59:40", 32: "17:12:35", 33: "17:26:50", 34: "17:39:13", 35: "17:52:05"
+        }
+
+        glassesZoneInDict = {
+            2: "09:21:33", 5: "10:28:12", 6: "10:47:20", 9: "11:32:19",
+            13: "12:22:00", 17: "13:15:44", 22: "14:26:03", 26: "15:23:10",
+            30: "16:22:55", 34: "17:22:10"
+        }
+
+        glassesZoneOutDict = {
+            2: "09:26:47", 5: "10:35:59", 6: "10:53:01", 9: "11:38:44",
+            13: "12:31:18", 17: "13:24:29", 22: "14:33:58", 26: "15:30:40",
+            30: "16:30:07", 34: "17:30:59"
+        }
+
+
+
         for tracker_id in totalCustomers:
             if tracker_id not in entryTimes:
                 entryTimes[tracker_id] = firstSeenDict.get(tracker_id, "N/A")
@@ -331,7 +372,20 @@ if __name__  == "__main__":
         totalDuration, totalDurationSeconds, entryTimeHours = totalTimeCalc(entryTimes, exitTimes)
         glassesZoneDuration, totalGlassesZoneDurationSeconds, _ = totalTimeCalc(glassesZoneInDict, glassesZoneOutDict)
 
+        entryTimeHours = Counter(entryTimeHours)
+        
         print(entryTimeHours)
+        print(entryTimeHours.keys())
+        print(entryTimeHours.values())
+
+        plt.bar(entryTimeHours.keys(), entryTimeHours.values())
+        plt.title("Peak Customer hours")
+        plt.xlabel("Hours")
+        plt.ylabel("# of Customers")
+        plt.xlim(8.5, 18.5)
+        plt.xticks(range(9, 19))
+        plt.tight_layout()
+        plt.show()
 
         validGlassesZoneDuration = {}
 
@@ -343,6 +397,9 @@ if __name__  == "__main__":
 
         averageTotalDuration = totalDurationSeconds / len(totalCustomers)
         averageGlassesZoneDuration = totalGlassesZoneDurationSeconds / len(validGlassesZoneDuration)
+
+        averageTotalDuration = secondsToString(averageTotalDuration)
+        averageGlassesZoneDuration = secondsToString(averageGlassesZoneDuration)
 
 
         print(f"Average time spent in store: {averageTotalDuration}")
