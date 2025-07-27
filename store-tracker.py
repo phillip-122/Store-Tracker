@@ -74,12 +74,13 @@ def secondsToString(seconds):
 
     secondsString = (f"{hours} hours {minutes} minutes {seconds} seconds")
 
-    return secondsString
+    return secondsString, minutes
 
 def totalTimeCalc(entryTime, exitTime):
     totalDuration = {}
     totalDurationSeconds = 0
     entryTimeHours = []
+    durationMinutes = []
 
     for tracker_id in entryTime.keys() | exitTime.keys(): #It expects the entry/exit times dict to be in {id: HH:MM:SS} format
         entryTimeString = entryTime.get(tracker_id)
@@ -97,9 +98,11 @@ def totalTimeCalc(entryTime, exitTime):
 
                 #This is so I can format the output so it says _ Hours _ Minutes _ Seconds
                 totalSeconds = int(duration.total_seconds())
-                secondsString = secondsToString(totalSeconds)
+                secondsString, minutes = secondsToString(totalSeconds)
 
                 totalDuration[tracker_id] = secondsString
+
+                durationMinutes.append(minutes)
 
                 totalDurationSeconds += totalSeconds
                 
@@ -108,7 +111,7 @@ def totalTimeCalc(entryTime, exitTime):
         else:
             totalDuration[tracker_id] = "N/A"
 
-    return totalDuration, totalDurationSeconds, entryTimeHours
+    return totalDuration, totalDurationSeconds, entryTimeHours, durationMinutes
 
 
 
@@ -369,22 +372,22 @@ if __name__  == "__main__":
             if tracker_id not in glassesZoneOutDict:
                 glassesZoneOutDict[tracker_id] = lastSeenDict.get(tracker_id, "N/A")
         
-        totalDuration, totalDurationSeconds, entryTimeHours = totalTimeCalc(entryTimes, exitTimes)
-        glassesZoneDuration, totalGlassesZoneDurationSeconds, _ = totalTimeCalc(glassesZoneInDict, glassesZoneOutDict)
+        totalDuration, totalDurationSeconds, entryTimeHours, durationMinutes = totalTimeCalc(entryTimes, exitTimes)
+        glassesZoneDuration, totalGlassesZoneDurationSeconds, _, _ = totalTimeCalc(glassesZoneInDict, glassesZoneOutDict)
 
         entryTimeHours = Counter(entryTimeHours)
-        
-        print(entryTimeHours)
-        print(entryTimeHours.keys())
-        print(entryTimeHours.values())
+        durationMinutes = Counter(durationMinutes)
 
         plt.bar(entryTimeHours.keys(), entryTimeHours.values())
         plt.title("Peak Customer hours")
         plt.xlabel("Hours")
         plt.ylabel("# of Customers")
-        plt.xlim(8.5, 18.5)
+        plt.xlim(8.5, 18.5) # The reason we have both xlim and xticks is because if an hour has 0 people, we still want to show it as that and not cut it off
         plt.xticks(range(9, 19))
         plt.tight_layout()
+        plt.show()
+
+        plt.hist(durationMinutes, bins=range(0, 61, 5))
         plt.show()
 
         validGlassesZoneDuration = {}
