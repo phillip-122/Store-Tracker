@@ -374,7 +374,7 @@ if __name__  == "__main__":
         entryTimeHours = Counter(entryTimeHours)
         durationMinutes = Counter(durationMinutes)
 
-        labels = ["9 am", "10 am", "11 am", "12 am", "1 pm", "2 pm", "3 pm", "4 pm", "5 pm", "6 pm"]
+        labels = ["9 am", "10 am", "11 am", "12 pm", "1 pm", "2 pm", "3 pm", "4 pm", "5 pm", "6 pm"]
         plt.style.use('ggplot')
         plt.bar(entryTimeHours.keys(), entryTimeHours.values(), edgecolor = 'black')
         plt.title("Peak Customer hours")
