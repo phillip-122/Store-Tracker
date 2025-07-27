@@ -325,8 +325,6 @@ if __name__  == "__main__":
 
         cv.destroyAllWindows()
 
-
-
         totalCustomers = {i: True for i in range(1, 36)}
 
         entryTimes = {
@@ -361,8 +359,6 @@ if __name__  == "__main__":
             30: "16:30:07", 34: "17:30:59"
         }
 
-
-
         for tracker_id in totalCustomers:
             if tracker_id not in entryTimes:
                 entryTimes[tracker_id] = firstSeenDict.get(tracker_id, "N/A")
@@ -378,16 +374,22 @@ if __name__  == "__main__":
         entryTimeHours = Counter(entryTimeHours)
         durationMinutes = Counter(durationMinutes)
 
-        plt.bar(entryTimeHours.keys(), entryTimeHours.values())
+        labels = ["9 am", "10 am", "11 am", "12 am", "1 pm", "2 pm", "3 pm", "4 pm", "5 pm", "6 pm"]
+        plt.style.use('ggplot')
+        plt.bar(entryTimeHours.keys(), entryTimeHours.values(), edgecolor = 'black')
         plt.title("Peak Customer hours")
         plt.xlabel("Hours")
-        plt.ylabel("# of Customers")
+        plt.ylabel("Number of Customers")
         plt.xlim(8.5, 18.5) # The reason we have both xlim and xticks is because if an hour has 0 people, we still want to show it as that and not cut it off
-        plt.xticks(range(9, 19))
+        plt.xticks(range(9, 19), labels=labels)
         plt.tight_layout()
         plt.show()
 
-        plt.hist(durationMinutes, bins=range(0, 61, 5))
+        plt.hist(durationMinutes, bins=range(0, 70, 10), edgecolor = 'black')
+        plt.title('Amount of time Customers Stayed')
+        plt.xlabel('Customer Visit Duration')
+        plt.ylabel('Number of Customers')
+        plt.tight_layout()
         plt.show()
 
         validGlassesZoneDuration = {}
@@ -396,20 +398,14 @@ if __name__  == "__main__":
             if time != 'N/A':
                 validGlassesZoneDuration[tracker_id] = time
 
-        # print(validGlassesZoneDuration)
-
         averageTotalDuration = totalDurationSeconds / len(totalCustomers)
         averageGlassesZoneDuration = totalGlassesZoneDurationSeconds / len(validGlassesZoneDuration)
 
         averageTotalDuration = secondsToString(averageTotalDuration)
         averageGlassesZoneDuration = secondsToString(averageGlassesZoneDuration)
 
-
         print(f"Average time spent in store: {averageTotalDuration}")
         print(f"Average time spent browsing glasses: {averageGlassesZoneDuration}")
-
-        #I also want to make something that says when the peak store hours/time is. Maybe also display it in a plot
-        #I also want to do something that says like __ people stayed for 2 minutes, __ stayed for 10-20 minutes
 
         totalCustomers = list(totalCustomers)
 
