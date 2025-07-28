@@ -376,6 +376,7 @@ if __name__  == "__main__":
 
         labels = ["9 am", "10 am", "11 am", "12 pm", "1 pm", "2 pm", "3 pm", "4 pm", "5 pm", "6 pm"]
         plt.style.use('ggplot')
+        plt.figure()
         plt.bar(entryTimeHours.keys(), entryTimeHours.values(), edgecolor = 'black')
         plt.title("Peak Customer hours")
         plt.xlabel("Hours")
@@ -383,14 +384,16 @@ if __name__  == "__main__":
         plt.xlim(8.5, 18.5) # The reason we have both xlim and xticks is because if an hour has 0 people, we still want to show it as that and not cut it off
         plt.xticks(range(9, 19), labels=labels)
         plt.tight_layout()
-        plt.show()
+        plt.savefig("Peak_Customer_Hours.png")
 
+        plt.figure()
         plt.hist(durationMinutes, bins=range(0, 70, 10), edgecolor = 'black')
         plt.title('Amount of time Customers Stayed')
         plt.xlabel('Customer Visit Duration')
         plt.ylabel('Number of Customers')
         plt.tight_layout()
-        plt.show()
+        plt.savefig("Duration_Customer_Visit.png")
+
 
         validGlassesZoneDuration = {}
 
