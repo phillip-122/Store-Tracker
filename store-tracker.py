@@ -8,9 +8,21 @@ import pytesseract
 from datetime import datetime
 from collections import Counter
 import matplotlib.pyplot as plt
+import time
+from torchreid.utils import FeatureExtractor
+import torch
 
+REID_THRESHOLD = 0.7
+
+start = time.time()
+print(start)
 
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+
+extractor = FeatureExtractor(
+    model_name='osnet_x0_25',
+    device='cuda' if torch.cuda.is_available() else 'cpu'
+)
 
 # filePath = "C:\\Users\\PHILLIP\\Desktop\\Code Projects\\python\\Store-Tracker\\Videos - Copy\\merged_trimmed_20250523.mp4"
 filePath = r"C:\Users\PHILLIP\Downloads\merged_trimmed_short - Made with Clipchamp.mp4"
@@ -161,6 +173,8 @@ if __name__  == "__main__":
     crossedOut = set()
     glassesZoneInSeen = set()
     glassesZoneOutSeen = set()
+    reidSet = set()
+
     entryTimes = {}
     exitTimes = {}
     legitimateEntry = {}
@@ -168,6 +182,7 @@ if __name__  == "__main__":
     glassesZoneOutDict = {}
     firstSeenDict = {}
     lastSeenDict = {}
+    reidDict = {}
 
     
     with sv.VideoSink(target_path=targetPath, video_info=videoInfo) as sink:
@@ -202,13 +217,14 @@ if __name__  == "__main__":
             crossingOut = detections[crossingOut]
 
             #This stuff gets the time/date of the frame, and then we use that to say when someone crossed and at what time, idk if I will use date yet
-            dateZoneCropped = frame[dateY: dateY + dateH, dateX: dateX + dateW]
+            # dateZoneCropped = frame[dateY: dateY + dateH, dateX: dateX + dateW]
             timeZoneCropped = frame[timeY: timeY + timeH, timeX: timeX + timeW]
 
-            ocrDate = pytesseract.image_to_string(dateZoneCropped)
+            # ocrDate = pytesseract.image_to_string(dateZoneCropped)
             ocrTime = pytesseract.image_to_string(timeZoneCropped)
             ocrTime = ocrTime.strip()
-
+ 
+            #I may add something that says that if it is not right time format, it just uses the last proper formatted time
             #This ensures that the OCR time is in the correct HH:MM:SS format and not in a messed up format
             match = re.match(r"(\d{2}):(\d{2}):(\d{2})", ocrTime)
             if match:
@@ -284,13 +300,34 @@ if __name__  == "__main__":
             # [     990.59      687.06      1058.6      763.17]]
 
             # If I loop through it, then each element will be a different person tracked and then I can crop the frame around them and it will be easier
-
+            bestScore = 0.0
+            bestID = None
             for xyxy, tracker_id in zip(detections.xyxy, detections.tracker_id):
+                tracker_id = int(tracker_id)
                 x1, y1, x2, y2 = map(int, xyxy)
                 personCropped = frame[y1:y2, x1:x2] #This crops the frame to just show whichever id it is at, we will then
-                # cv.imwrite(f"cropped_person_{int(tracker_id)}.jpg", personCropped)
-                
+                personCropped = cv.cvtColor(personCropped, cv.COLOR_BGR2RGB) #we need it to be in RGB, but by default it is in BGR
 
+                feat = extractor(personCropped)
+
+                if tracker_id not in reidSet:
+                    for ids, feats in reidDict.items():
+                        closestScore = max(torch.nn.functional.cosine_similarity(feat, f).item() for f in feats) #We loop through and find whichever score is highest and use that for comparison
+                        print(f"Tracker id: {tracker_id} is {closestScore:.4f}% similar to id: {ids}")
+                    
+                        if closestScore > bestScore:
+                            bestScore = closestScore
+                            bestID = ids
+
+                    print(f"The ID with the best score of {bestScore:.4f} was ID {bestID}")
+
+                    if bestScore >  REID_THRESHOLD:
+                        print(f"Thus, ID: {tracker_id} and ID: {bestID} are actually the same person")
+                    
+                    reidSet.add(tracker_id)
+                else:
+                    reidDict.setdefault(tracker_id, []).append(feat) #makes a dict of {tracker_id: [list of features for each id]}
+                    
             labels = [
                 f"# {tracker_id} {conf:.2f}"
                 for tracker_id, conf
@@ -325,39 +362,39 @@ if __name__  == "__main__":
 
         cv.destroyAllWindows()
 
-        totalCustomers = {i: True for i in range(1, 36)}
+        # totalCustomers = {i: True for i in range(1, 36)}
 
-        entryTimes = {
-            1: "09:03:22", 2: "09:17:45", 3: "09:55:10", 4: "10:06:33", 5: "10:21:18",
-            6: "10:42:07", 7: "10:57:59", 8: "11:08:12", 9: "11:27:48", 10: "11:35:12",
-            11: "11:49:07", 12: "12:01:19", 13: "12:17:44", 14: "12:28:33", 15: "12:40:59",
-            16: "12:55:14", 17: "13:07:23", 18: "13:19:38", 19: "13:33:15", 20: "13:47:22",
-            21: "14:02:11", 22: "14:19:43", 23: "14:35:56", 24: "14:51:18", 25: "15:04:05",
-            26: "15:17:47", 27: "15:30:59", 28: "15:45:36", 29: "16:02:20", 30: "16:17:48",
-            31: "16:33:15", 32: "16:47:59", 33: "17:02:45", 34: "17:16:39", 35: "17:29:50"
-        }
+        # entryTimes = {
+        #     1: "09:03:22", 2: "09:17:45", 3: "09:55:10", 4: "10:06:33", 5: "10:21:18",
+        #     6: "10:42:07", 7: "10:57:59", 8: "11:08:12", 9: "11:27:48", 10: "11:35:12",
+        #     11: "11:49:07", 12: "12:01:19", 13: "12:17:44", 14: "12:28:33", 15: "12:40:59",
+        #     16: "12:55:14", 17: "13:07:23", 18: "13:19:38", 19: "13:33:15", 20: "13:47:22",
+        #     21: "14:02:11", 22: "14:19:43", 23: "14:35:56", 24: "14:51:18", 25: "15:04:05",
+        #     26: "15:17:47", 27: "15:30:59", 28: "15:45:36", 29: "16:02:20", 30: "16:17:48",
+        #     31: "16:33:15", 32: "16:47:59", 33: "17:02:45", 34: "17:16:39", 35: "17:29:50"
+        # }
 
-        exitTimes = {
-            1: "09:15:01", 2: "09:29:40", 3: "10:03:58", 4: "10:21:12", 5: "10:37:44",
-            6: "10:55:02", 7: "11:03:17", 8: "11:19:25", 9: "11:44:35", 10: "11:57:01",
-            11: "12:05:19", 12: "12:26:54", 13: "12:42:13", 14: "12:52:47", 15: "13:03:11",
-            16: "13:18:49", 17: "13:29:56", 18: "13:47:22", 19: "14:01:50", 20: "14:15:29",
-            21: "14:33:42", 22: "14:45:12", 23: "14:59:57", 24: "15:14:30", 25: "15:28:19",
-            26: "15:41:38", 27: "15:59:01", 28: "16:14:08", 29: "16:27:11", 30: "16:43:50",
-            31: "16:59:40", 32: "17:12:35", 33: "17:26:50", 34: "17:39:13", 35: "17:52:05"
-        }
+        # exitTimes = {
+        #     1: "09:15:01", 2: "09:29:40", 3: "10:03:58", 4: "10:21:12", 5: "10:37:44",
+        #     6: "10:55:02", 7: "11:03:17", 8: "11:19:25", 9: "11:44:35", 10: "11:57:01",
+        #     11: "12:05:19", 12: "12:26:54", 13: "12:42:13", 14: "12:52:47", 15: "13:03:11",
+        #     16: "13:18:49", 17: "13:29:56", 18: "13:47:22", 19: "14:01:50", 20: "14:15:29",
+        #     21: "14:33:42", 22: "14:45:12", 23: "14:59:57", 24: "15:14:30", 25: "15:28:19",
+        #     26: "15:41:38", 27: "15:59:01", 28: "16:14:08", 29: "16:27:11", 30: "16:43:50",
+        #     31: "16:59:40", 32: "17:12:35", 33: "17:26:50", 34: "17:39:13", 35: "17:52:05"
+        # }
 
-        glassesZoneInDict = {
-            2: "09:21:33", 5: "10:28:12", 6: "10:47:20", 9: "11:32:19",
-            13: "12:22:00", 17: "13:15:44", 22: "14:26:03", 26: "15:23:10",
-            30: "16:22:55", 34: "17:22:10"
-        }
+        # glassesZoneInDict = {
+        #     2: "09:21:33", 5: "10:28:12", 6: "10:47:20", 9: "11:32:19",
+        #     13: "12:22:00", 17: "13:15:44", 22: "14:26:03", 26: "15:23:10",
+        #     30: "16:22:55", 34: "17:22:10"
+        # }
 
-        glassesZoneOutDict = {
-            2: "09:26:47", 5: "10:35:59", 6: "10:53:01", 9: "11:38:44",
-            13: "12:31:18", 17: "13:24:29", 22: "14:33:58", 26: "15:30:40",
-            30: "16:30:07", 34: "17:30:59"
-        }
+        # glassesZoneOutDict = {
+        #     2: "09:26:47", 5: "10:35:59", 6: "10:53:01", 9: "11:38:44",
+        #     13: "12:31:18", 17: "13:24:29", 22: "14:33:58", 26: "15:30:40",
+        #     30: "16:30:07", 34: "17:30:59"
+        # }
 
         for tracker_id in totalCustomers:
             if tracker_id not in entryTimes:
@@ -397,9 +434,9 @@ if __name__  == "__main__":
 
         validGlassesZoneDuration = {}
 
-        for tracker_id, time in glassesZoneDuration.items():
-            if time != 'N/A':
-                validGlassesZoneDuration[tracker_id] = time
+        for tracker_id, duration in glassesZoneDuration.items():
+            if duration != 'N/A':
+                validGlassesZoneDuration[tracker_id] = duration
 
         averageTotalDuration = totalDurationSeconds / len(totalCustomers)
         averageGlassesZoneDuration = totalGlassesZoneDurationSeconds / len(validGlassesZoneDuration)
@@ -431,3 +468,9 @@ if __name__  == "__main__":
                 csvWriter.writerow([tracker_id, entry, exit, totalCustomerDuration, totalGlassesZoneDuration, legit])
 
 #After doing some more stuff, I need to add testing/edge case stuff
+
+end = time.time()
+print(end)
+
+timeeeee = end - start
+print(timeeeee)
