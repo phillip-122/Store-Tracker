@@ -184,6 +184,8 @@ if __name__  == "__main__":
     lastSeenDict = {}
     reidDict = {}
 
+    reid_id_map = {}
+
     
     with sv.VideoSink(target_path=targetPath, video_info=videoInfo) as sink:
         for frame in frameGenerator:
@@ -232,78 +234,16 @@ if __name__  == "__main__":
             else:
                 ocrTime = "N/A"
 
-            # adds every seens ID into a set so that we can use it later in the CSV and also adds a lastseen dict so if an id disappears before leaving
-            #we will take that lastseen time as their exit time. It also adds a firstseen dict so that even if someone is not a legit entry
-            #we can still estimate their total time spent
-            for tracker_id in detections.tracker_id:
-                tracker_id = int(tracker_id) #we do this because it is a np.int64, but it is easier to look at/ work with if it is a regular integer
-                lastSeenDict[tracker_id] = ocrTime
-                totalCustomers.add(tracker_id)
-
-                if tracker_id not in firstSeenDict:
-                    firstSeenDict[tracker_id] = ocrTime
-
-            legitEntry = legitEntryZone.trigger(detections)
-            legitEntry = detections[legitEntry]
-
-            for tracker_id in legitEntry.tracker_id:
-                tracker_id = int(tracker_id)
-                if tracker_id in crossedIn:
-                    legitimateEntry[tracker_id] = True
-                    # print(f"{tracker_id} entered legitimately")
-                else:
-                    legitimateEntry.setdefault(tracker_id, False)
-                    # print(f"{tracker_id} entered  NOT legitimately")
-                    
-
-            for tracker_id in crossingIn.tracker_id:
-                tracker_id = int(tracker_id)
-                if tracker_id not in crossedIn:
-                    # print(f"ID {tracker_id} entered the store at {ocrTime}")
-                    entryTimes[tracker_id] = ocrTime
-                    crossedIn.add(tracker_id)
-
-            for tracker_id in crossingOut.tracker_id:
-                tracker_id = int(tracker_id)
-                if tracker_id not in crossedOut:
-                    # print(f"ID {tracker_id} left the store at {ocrTime}")
-                    exitTimes[tracker_id] = ocrTime
-                    crossedOut.add(tracker_id)
-
-            # For getting the time that someone enters the glassesZone
-            glassesZoneIn = glassesZone.trigger(detections)
-            glassesZoneIn = detections[glassesZoneIn]
-
-            for tracker_id in glassesZoneIn.tracker_id:
-                tracker_id = int(tracker_id)
-                if tracker_id not in glassesZoneInSeen:
-                    glassesZoneInDict[tracker_id] = ocrTime
-                    glassesZoneInSeen.add(tracker_id)
-
-            # For getting the time that someone exits the glassesZone
-
-            glassesZoneOut = glassesZone.trigger(detections)
-            glassesZoneOut = np.invert(glassesZoneOut)
-            glassesZoneOut = detections[glassesZoneOut]
-
-            for tracker_id in glassesZoneOut.tracker_id:
-                tracker_id = int(tracker_id)
-                if tracker_id in glassesZoneInSeen and tracker_id not in glassesZoneOutSeen:
-                    glassesZoneOutDict[tracker_id] = ocrTime
-                    glassesZoneOutSeen.add(tracker_id)
-
-            #detections.xyxy prints something like
-            # [[     1075.6      622.46      1179.7      975.01]
-            # [     333.28      535.39      431.53      778.53]
-            # [     254.77      652.97      301.02      755.86]
-            # [     384.67      701.37      478.85      786.96]
-            # [     990.59      687.06      1058.6      763.17]]
-
-            # If I loop through it, then each element will be a different person tracked and then I can crop the frame around them and it will be easier
-            bestScore = 0.0
-            bestID = None
+            original_ids = []
+            final_ids = []
+            
             for xyxy, tracker_id in zip(detections.xyxy, detections.tracker_id):
                 tracker_id = int(tracker_id)
+                original_ids.append(tracker_id)
+                
+                bestScore = 0.0
+                bestID = None
+
                 x1, y1, x2, y2 = map(int, xyxy)
                 personCropped = frame[y1:y2, x1:x2] #This crops the frame to just show whichever id it is at, we will then
                 personCropped = cv.cvtColor(personCropped, cv.COLOR_BGR2RGB) #we need it to be in RGB, but by default it is in BGR
@@ -321,17 +261,111 @@ if __name__  == "__main__":
 
                     print(f"The ID with the best score of {bestScore:.4f} was ID {bestID}")
 
-                    if bestScore >  REID_THRESHOLD:
+                    if bestScore > REID_THRESHOLD:
                         print(f"Thus, ID: {tracker_id} and ID: {bestID} are actually the same person")
-                    
+                        reid_id_map[tracker_id] = bestID
+                        final_id = bestID
+                    else:
+                        reid_id_map[tracker_id] = tracker_id
+                        final_id = tracker_id
+
+
                     reidSet.add(tracker_id)
                 else:
-                    reidDict.setdefault(tracker_id, []).append(feat) #makes a dict of {tracker_id: [list of features for each id]}
+                    final_id = reid_id_map.get(tracker_id, tracker_id)
+
+                    reidDict.setdefault(final_id, []).append(feat) #makes a dict of {tracker_id: [list of features for each id]}
+                    final_ids.append(final_id)
+
+
+            print(reid_id_map)
+            print(original_ids)
+            print(final_ids)
+
+            # adds every seens ID into a set so that we can use it later in the CSV and also adds a lastseen dict so if an id disappears before leaving
+            #we will take that lastseen time as their exit time. It also adds a firstseen dict so that even if someone is not a legit entry
+            #we can still estimate their total time spent
+            for tracker_id in detections.tracker_id:
+                tracker_id = int(tracker_id) #we do this because it is a np.int64, but it is easier to look at/ work with if it is a regular integer
+                final_id = reid_id_map.get(tracker_id, tracker_id)
+                
+                lastSeenDict[final_id] = ocrTime
+                totalCustomers.add(final_id)
+
+                if final_id not in firstSeenDict:
+                    firstSeenDict[final_id] = ocrTime
+
+            legitEntry = legitEntryZone.trigger(detections)
+            legitEntry = detections[legitEntry]
+
+            for tracker_id in legitEntry.tracker_id:
+                tracker_id = int(tracker_id)
+                final_id = reid_id_map.get(tracker_id, tracker_id)
+
+                if final_id in crossedIn:
+                    legitimateEntry[final_id] = True
+                    # print(f"{final_id} entered legitimately")
+                else:
+                    legitimateEntry.setdefault(final_id, False)
+                    # print(f"{final_id} entered  NOT legitimately")
                     
+
+            for tracker_id in crossingIn.tracker_id:
+                tracker_id = int(tracker_id)
+                final_id = reid_id_map.get(tracker_id, tracker_id)
+
+                if final_id not in crossedIn:
+                    # print(f"ID {final_id} entered the store at {ocrTime}")
+                    entryTimes[final_id] = ocrTime
+                    crossedIn.add(final_id)
+
+            for tracker_id in crossingOut.tracker_id:
+                tracker_id = int(tracker_id)
+                final_id = reid_id_map.get(tracker_id, tracker_id)
+
+                if final_id not in crossedOut:
+                    # print(f"ID {final_id} left the store at {ocrTime}")
+                    exitTimes[final_id] = ocrTime
+                    crossedOut.add(final_id)
+
+            # For getting the time that someone enters the glassesZone
+            glassesZoneIn = glassesZone.trigger(detections)
+            glassesZoneIn = detections[glassesZoneIn]
+
+            for tracker_id in glassesZoneIn.tracker_id:
+                tracker_id = int(tracker_id)
+                final_id = reid_id_map.get(tracker_id, tracker_id)
+
+                if final_id not in glassesZoneInSeen:
+                    glassesZoneInDict[final_id] = ocrTime
+                    glassesZoneInSeen.add(final_id)
+
+            # For getting the time that someone exits the glassesZone
+
+            glassesZoneOut = glassesZone.trigger(detections)
+            glassesZoneOut = np.invert(glassesZoneOut)
+            glassesZoneOut = detections[glassesZoneOut]
+
+            for tracker_id in glassesZoneOut.tracker_id:
+                tracker_id = int(tracker_id)
+                final_id = reid_id_map.get(tracker_id, tracker_id)
+
+                if final_id in glassesZoneInSeen and final_id not in glassesZoneOutSeen:
+                    glassesZoneOutDict[final_id] = ocrTime
+                    glassesZoneOutSeen.add(final_id)
+
+            #detections.xyxy prints something like
+            # [[     1075.6      622.46      1179.7      975.01]
+            # [     333.28      535.39      431.53      778.53]
+            # [     254.77      652.97      301.02      755.86]
+            # [     384.67      701.37      478.85      786.96]
+            # [     990.59      687.06      1058.6      763.17]]
+
+            # If I loop through it, then each element will be a different person tracked and then I can crop the frame around them and it will be easier
+            
             labels = [
-                f"# {tracker_id} {conf:.2f}"
-                for tracker_id, conf
-                in zip(detections.tracker_id, detections.confidence)
+                f"# {reid_id_map.get(int(tracker_id), int(tracker_id))} {conf:.2f}"
+                for tracker_id, conf in zip(detections.tracker_id, detections.confidence)
             ]
 
             annotatedFrame = frame.copy()
@@ -362,48 +396,16 @@ if __name__  == "__main__":
 
         cv.destroyAllWindows()
 
-        # totalCustomers = {i: True for i in range(1, 36)}
-
-        # entryTimes = {
-        #     1: "09:03:22", 2: "09:17:45", 3: "09:55:10", 4: "10:06:33", 5: "10:21:18",
-        #     6: "10:42:07", 7: "10:57:59", 8: "11:08:12", 9: "11:27:48", 10: "11:35:12",
-        #     11: "11:49:07", 12: "12:01:19", 13: "12:17:44", 14: "12:28:33", 15: "12:40:59",
-        #     16: "12:55:14", 17: "13:07:23", 18: "13:19:38", 19: "13:33:15", 20: "13:47:22",
-        #     21: "14:02:11", 22: "14:19:43", 23: "14:35:56", 24: "14:51:18", 25: "15:04:05",
-        #     26: "15:17:47", 27: "15:30:59", 28: "15:45:36", 29: "16:02:20", 30: "16:17:48",
-        #     31: "16:33:15", 32: "16:47:59", 33: "17:02:45", 34: "17:16:39", 35: "17:29:50"
-        # }
-
-        # exitTimes = {
-        #     1: "09:15:01", 2: "09:29:40", 3: "10:03:58", 4: "10:21:12", 5: "10:37:44",
-        #     6: "10:55:02", 7: "11:03:17", 8: "11:19:25", 9: "11:44:35", 10: "11:57:01",
-        #     11: "12:05:19", 12: "12:26:54", 13: "12:42:13", 14: "12:52:47", 15: "13:03:11",
-        #     16: "13:18:49", 17: "13:29:56", 18: "13:47:22", 19: "14:01:50", 20: "14:15:29",
-        #     21: "14:33:42", 22: "14:45:12", 23: "14:59:57", 24: "15:14:30", 25: "15:28:19",
-        #     26: "15:41:38", 27: "15:59:01", 28: "16:14:08", 29: "16:27:11", 30: "16:43:50",
-        #     31: "16:59:40", 32: "17:12:35", 33: "17:26:50", 34: "17:39:13", 35: "17:52:05"
-        # }
-
-        # glassesZoneInDict = {
-        #     2: "09:21:33", 5: "10:28:12", 6: "10:47:20", 9: "11:32:19",
-        #     13: "12:22:00", 17: "13:15:44", 22: "14:26:03", 26: "15:23:10",
-        #     30: "16:22:55", 34: "17:22:10"
-        # }
-
-        # glassesZoneOutDict = {
-        #     2: "09:26:47", 5: "10:35:59", 6: "10:53:01", 9: "11:38:44",
-        #     13: "12:31:18", 17: "13:24:29", 22: "14:33:58", 26: "15:30:40",
-        #     30: "16:30:07", 34: "17:30:59"
-        # }
-
         for tracker_id in totalCustomers:
-            if tracker_id not in entryTimes:
-                entryTimes[tracker_id] = firstSeenDict.get(tracker_id, "N/A")
+            final_id = reid_id_map.get(tracker_id, tracker_id)
+
+            if final_id not in entryTimes:
+                entryTimes[final_id] = firstSeenDict.get(final_id, "N/A")
         
-            if tracker_id not in exitTimes:
-                exitTimes[tracker_id] = lastSeenDict.get(tracker_id, "N/A")
-            if tracker_id not in glassesZoneOutDict:
-                glassesZoneOutDict[tracker_id] = lastSeenDict.get(tracker_id, "N/A")
+            if final_id not in exitTimes:
+                exitTimes[final_id] = lastSeenDict.get(final_id, "N/A")
+            if final_id not in glassesZoneOutDict:
+                glassesZoneOutDict[final_id] = lastSeenDict.get(final_id, "N/A")
         
         totalDuration, totalDurationSeconds, entryTimeHours, durationMinutes = totalTimeCalc(entryTimes, exitTimes)
         glassesZoneDuration, totalGlassesZoneDurationSeconds, _, _ = totalTimeCalc(glassesZoneInDict, glassesZoneOutDict)
@@ -457,15 +459,16 @@ if __name__  == "__main__":
             csvWriter.writerow(headers)
                     
             for tracker_id in totalCustomers:
+                final_id = reid_id_map.get(tracker_id, tracker_id)
 
-                entry = entryTimes.get(tracker_id, "N/A")
-                exit = exitTimes.get(tracker_id, "N/A")
-                legit = legitimateEntry.get(tracker_id, "N/A")
-                totalCustomerDuration = totalDuration.get(tracker_id, "N/A")
-                totalGlassesZoneDuration = glassesZoneDuration.get(tracker_id, "N/A")
+                entry = entryTimes.get(final_id, "N/A")
+                exit = exitTimes.get(final_id, "N/A")
+                legit = legitimateEntry.get(final_id, "N/A")
+                totalCustomerDuration = totalDuration.get(final_id, "N/A")
+                totalGlassesZoneDuration = glassesZoneDuration.get(final_id, "N/A")
 
 
-                csvWriter.writerow([tracker_id, entry, exit, totalCustomerDuration, totalGlassesZoneDuration, legit])
+                csvWriter.writerow([final_id, entry, exit, totalCustomerDuration, totalGlassesZoneDuration, legit])
 
 #After doing some more stuff, I need to add testing/edge case stuff
 
