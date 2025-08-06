@@ -1,0 +1,8 @@
+matplotlib==3.10.5
+numpy==2.3.2
+opencv_python==4.10.0.84
+pytesseract==0.3.13
+supervision==0.26.1
+torch==2.7.1+cu128
+torchreid==1.4.0
+ultralytics==8.3.40
