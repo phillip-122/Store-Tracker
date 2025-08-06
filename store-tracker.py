@@ -429,8 +429,8 @@ if __name__  == "__main__":
             averageTotalDuration = 0
             averageGlassesZoneDuration = 0
 
-        averageTotalDuration = secondsToString(averageTotalDuration)
-        averageGlassesZoneDuration = secondsToString(averageGlassesZoneDuration)
+        averageTotalDuration, _ = secondsToString(averageTotalDuration)
+        averageGlassesZoneDuration, _ = secondsToString(averageGlassesZoneDuration)
 
         print(f"Average time spent in store: {averageTotalDuration}")
         print(f"Average time spent browsing glasses: {averageGlassesZoneDuration}")
