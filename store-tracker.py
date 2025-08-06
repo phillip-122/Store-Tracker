@@ -1,31 +1,28 @@
-import csv
 import re
-from ultralytics import YOLO
-import supervision as sv
+import csv
+import torch
 import cv2 as cv
 import numpy as np
 import pytesseract
+import supervision as sv
+from ultralytics import YOLO
 from datetime import datetime
 from collections import Counter
 import matplotlib.pyplot as plt
-import time
 from torchreid.utils import FeatureExtractor
-import torch
 
 REID_THRESHOLD = 0.7
 
-start = time.time()
-print(start)
-
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe" #This is where I store my tesseract.exe, change to whatever yours is
 
 extractor = FeatureExtractor(
     model_name='osnet_x0_25',
     device='cuda' if torch.cuda.is_available() else 'cpu'
 )
 
-# filePath = "C:\\Users\\PHILLIP\\Desktop\\Code Projects\\python\\Store-Tracker\\Videos - Copy\\merged_trimmed_20250523.mp4"
-filePath = r"C:\Users\PHILLIP\Downloads\merged_trimmed_short - Made with Clipchamp.mp4"
+#change these to wherever you want to store the video
+filePath = "C:\\Users\\PHILLIP\\Desktop\\Code Projects\\python\\Store-Tracker\\Videos - Copy\\merged_trimmed_20250523.mp4"
+# filePath = r"C:\Users\PHILLIP\Downloads\merged_trimmed_short - Made with Clipchamp.mp4"
 targetPath = "C:\\Users\\PHILLIP\\Desktop\\Code Projects\\python\\Store-Tracker\\output.mp4"
 
 lineTop = sv.Point(x=200, y=0)
@@ -183,10 +180,10 @@ if __name__  == "__main__":
     firstSeenDict = {}
     lastSeenDict = {}
     reidDict = {}
-
     reid_id_map = {}
 
-    
+    lastProperFormatedTime = "00:00:00"
+
     with sv.VideoSink(target_path=targetPath, video_info=videoInfo) as sink:
         for frame in frameGenerator:
 
@@ -228,11 +225,12 @@ if __name__  == "__main__":
  
             #I may add something that says that if it is not right time format, it just uses the last proper formatted time
             #This ensures that the OCR time is in the correct HH:MM:SS format and not in a messed up format
-            match = re.match(r"(\d{2}):(\d{2}):(\d{2})", ocrTime)
+            match = re.search(r"(\d{2}):(\d{2}):(\d{2})", ocrTime)
             if match:
                 ocrTime = ":".join(match.groups())
+                lastProperFormatedTime = ocrTime
             else:
-                ocrTime = "N/A"
+                ocrTime = lastProperFormatedTime
 
             original_ids = []
             final_ids = []
@@ -253,16 +251,13 @@ if __name__  == "__main__":
                 if tracker_id not in reidSet:
                     for ids, feats in reidDict.items():
                         closestScore = max(torch.nn.functional.cosine_similarity(feat, f).item() for f in feats) #We loop through and find whichever score is highest and use that for comparison
-                        print(f"Tracker id: {tracker_id} is {closestScore:.4f}% similar to id: {ids}")
                     
                         if closestScore > bestScore:
                             bestScore = closestScore
                             bestID = ids
 
-                    print(f"The ID with the best score of {bestScore:.4f} was ID {bestID}")
-
                     if bestScore > REID_THRESHOLD:
-                        print(f"Thus, ID: {tracker_id} and ID: {bestID} are actually the same person")
+                        # print(f"Thus, ID: {tracker_id} and ID: {bestID} are actually the same person")
                         reid_id_map[tracker_id] = bestID
                         final_id = bestID
                     else:
@@ -276,11 +271,6 @@ if __name__  == "__main__":
 
                     reidDict.setdefault(final_id, []).append(feat) #makes a dict of {tracker_id: [list of features for each id]}
                     final_ids.append(final_id)
-
-
-            print(reid_id_map)
-            print(original_ids)
-            print(final_ids)
 
             # adds every seens ID into a set so that we can use it later in the CSV and also adds a lastseen dict so if an id disappears before leaving
             #we will take that lastseen time as their exit time. It also adds a firstseen dict so that even if someone is not a legit entry
@@ -354,15 +344,6 @@ if __name__  == "__main__":
                     glassesZoneOutDict[final_id] = ocrTime
                     glassesZoneOutSeen.add(final_id)
 
-            #detections.xyxy prints something like
-            # [[     1075.6      622.46      1179.7      975.01]
-            # [     333.28      535.39      431.53      778.53]
-            # [     254.77      652.97      301.02      755.86]
-            # [     384.67      701.37      478.85      786.96]
-            # [     990.59      687.06      1058.6      763.17]]
-
-            # If I loop through it, then each element will be a different person tracked and then I can crop the frame around them and it will be easier
-            
             labels = [
                 f"# {reid_id_map.get(int(tracker_id), int(tracker_id))} {conf:.2f}"
                 for tracker_id, conf in zip(detections.tracker_id, detections.confidence)
@@ -440,8 +421,13 @@ if __name__  == "__main__":
             if duration != 'N/A':
                 validGlassesZoneDuration[tracker_id] = duration
 
-        averageTotalDuration = totalDurationSeconds / len(totalCustomers)
-        averageGlassesZoneDuration = totalGlassesZoneDurationSeconds / len(validGlassesZoneDuration)
+        try: #this is incase 0 customers are in the store/in glasses zone at the time you look at
+            averageTotalDuration = totalDurationSeconds / len(totalCustomers)
+            averageGlassesZoneDuration = totalGlassesZoneDurationSeconds / len(validGlassesZoneDuration)
+        except Exception as e:
+            print(f"Error getting average duration: {e}")
+            averageTotalDuration = 0
+            averageGlassesZoneDuration = 0
 
         averageTotalDuration = secondsToString(averageTotalDuration)
         averageGlassesZoneDuration = secondsToString(averageGlassesZoneDuration)
@@ -469,11 +455,3 @@ if __name__  == "__main__":
 
 
                 csvWriter.writerow([final_id, entry, exit, totalCustomerDuration, totalGlassesZoneDuration, legit])
-
-#After doing some more stuff, I need to add testing/edge case stuff
-
-end = time.time()
-print(end)
-
-timeeeee = end - start
-print(timeeeee)
