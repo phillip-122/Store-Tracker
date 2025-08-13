@@ -1,4 +1,4 @@
-# Store Customer Tracker
+# Optometry Retail Store Analytics System
 
 > Real-time retail analytics using computer vision, OCR, and re-identification  
 
@@ -7,7 +7,7 @@
 ---
 
 <h2>Description</h2>
-This project processes surveillance video from a Pearle Vision and uses it to analyze trends in customer behavior using computer vision. It tracks customers in real-time, determining both the total time they spend in the store and the time they spend browsing specific glasses. It also logs entries/exits with timestamps, finally putting all the information into a CSV file. I also save the results to graphs in order to view the data very easily. To ensure accuracy, I incorporated person re-identification so that the results are much more accurate.
+This project processes surveillance video from a local Optometry Retail Store and uses it to analyze trends in customer behavior using computer vision. It tracks customers in real-time, determining both the total time they spend in the store and the time they spend browsing specific glasses. It also logs entries/exits with timestamps, finally putting all the information into a CSV file. I also save the results to graphs in order to view the data very easily. To ensure accuracy, I incorporated person re-identification so that the results are much more accurate.
 <br><br>
 The goal is to analyze customer behavior into insights, including things like visit duration and zone engagement, for use in business analytics and increasing store traffic.
 <br />
