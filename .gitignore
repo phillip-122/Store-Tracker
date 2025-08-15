@@ -2,5 +2,10 @@
 *.avi
 *.mov
 *.pt
+*.csv
+*.png
+*.pyc
+*.log
 Videos - Copy/
 __pycache__/
+tempCodeRunnerFile.py
