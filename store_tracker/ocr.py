@@ -27,7 +27,6 @@ def getTime(timeZoneCropped, lastProperFormatedTime):
     ocrTime = pytesseract.image_to_string(timeZoneCropped)
     ocrTime = ocrTime.strip()
  
-    #I may add something that says that if it is not right time format, it just uses the last proper formatted time
     #This ensures that the OCR time is in the correct HH:MM:SS format and not in a messed up format
     match = re.search(r"(\d{2}):(\d{2}):(\d{2})", ocrTime)
     if match:
