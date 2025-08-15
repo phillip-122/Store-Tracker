@@ -1,14 +1,14 @@
+import logging
 import cv2 as cv
 import numpy as np
 import supervision as sv
 
-from config import *
-from detection import getCrossing, reid
-from analytics import stats
-from visualization import annotateFrame
-from utils import finalize_id
-from ocr import getTime
-
+from store_tracker.config import *
+from store_tracker.detection import getCrossing, reid
+from store_tracker.analytics import saveStats
+from store_tracker.visualization import annotateFrame
+from store_tracker.utils import finalize_id
+from store_tracker.ocr import getTime
 
 def main():
     videoInfo = sv.VideoInfo.from_video_path(FILE_PATH)
@@ -89,8 +89,6 @@ def main():
 
             #This stuff gets the time of the frame, and then we use that to say when someone crossed and at what time
             timeZoneCropped = frame[TIME_Y: TIME_Y + TIME_H, TIME_X: TIME_X + TIME_W]
-
-            print(lastProperFormatedTime)
             
             ocrTime, lastProperFormatedTime = getTime(timeZoneCropped, lastProperFormatedTime)
 
@@ -116,17 +114,17 @@ def main():
 
                 if final_id in crossedIn:
                     legitimateEntry[final_id] = True
-                    # print(f"{final_id} entered legitimately")
+                    logging.debug(f"{final_id} entered legitimately")
                 else:
                     legitimateEntry.setdefault(final_id, False)
-                    # print(f"{final_id} entered  NOT legitimately")
+                    logging.debug(f"{final_id} entered  NOT legitimately")
                     
 
             for tracker_id in crossingIn.tracker_id:
                 final_id = finalize_id(tracker_id, reid_id_map)
 
                 if final_id not in crossedIn:
-                    # print(f"ID {final_id} entered the store at {ocrTime}")
+                    logging.debug(f"ID {final_id} entered the store at {ocrTime}")
                     entryTimes[final_id] = ocrTime
                     crossedIn.add(final_id)
 
@@ -134,7 +132,7 @@ def main():
                 final_id = finalize_id(tracker_id, reid_id_map)
 
                 if final_id not in crossedOut:
-                    # print(f"ID {final_id} left the store at {ocrTime}")
+                    logging.debug(f"ID {final_id} left the store at {ocrTime}")
                     exitTimes[final_id] = ocrTime
                     crossedOut.add(final_id)
 
@@ -179,7 +177,7 @@ def main():
 
         cv.destroyAllWindows()
 
-        stats(CSV_OUTPUT, totalCustomers, entryTimes, exitTimes, firstSeenDict, lastSeenDict, glassesZoneInDict, glassesZoneOutDict, legitimateEntry, reid_id_map)
+        saveStats(CSV_OUTPUT, totalCustomers, entryTimes, exitTimes, firstSeenDict, lastSeenDict, glassesZoneInDict, glassesZoneOutDict, legitimateEntry, reid_id_map)
 
         
 if __name__  == "__main__":

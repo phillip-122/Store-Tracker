@@ -1,7 +1,8 @@
+import logging
 import csv
 import matplotlib.pyplot as plt
 from collections import Counter
-from utils import secondsToString, totalTimeCalc, finalize_id
+from store_tracker.utils import secondsToString, totalTimeCalc, finalize_id
 
 
 def barChart(entryTimeHours):
@@ -16,6 +17,7 @@ def barChart(entryTimeHours):
     plt.xticks(range(9, 19), labels=labels)
     plt.tight_layout()
     plt.savefig("Peak_Customer_Hours.png")
+    logging.info("Saved bar chart as Peak_Customer_Hours.png")
 
 def histogram(durationMinutes):
     plt.figure()
@@ -25,9 +27,35 @@ def histogram(durationMinutes):
     plt.ylabel('Number of Customers')
     plt.tight_layout()
     plt.savefig("Duration_Customer_Visit.png")
+    logging.info("Saved histogram as Duration_Customer_Visit.png")
 
 def saveCSV(CSV_OUTPUT, totalCustomers, entryTimes, exitTimes, legitimateEntry, totalDuration, glassesZoneDuration, reid_id_map):
-   
+    """
+    Save customer tracking data to a CSV file.
+
+    Parameters:
+    CSV_OUTPUT: pathlib.WindowsPath
+        This is the output path for the CSV
+    totalCustomers: list
+        This is the list of all tracked customer IDs.
+    entryTimes: dict
+        This is a dictionary mapping customer IDs to entry times.
+    exitTimes: dict
+        This is a dictionary mapping customer IDs to exit times.
+    legitimateEntry: dict
+        This is a dictionary mapping customer IDs to whether they entered legitimately.
+    totalDuration: dict
+        This is a dictionary mapping customer IDs to total time spent in the store.
+    glassesZoneDuration: dict
+        This is a dictionary mapping customer IDs to total time spent in the glasses zone.
+    reid_id_map: dict
+        This is a dictionary mapping tracker IDs to their matched ReID IDs.
+
+    Returns:
+    None
+        This function does not return anything. It writes the data to a CSV file.
+    """
+
     totalCustomers = list(totalCustomers)
 
     headers = ["ID", "Entry Time", "Exit Time", "Total Time in Store", "Total Time Browsing Glasses", "Legitimate Entrance"]
@@ -48,9 +76,39 @@ def saveCSV(CSV_OUTPUT, totalCustomers, entryTimes, exitTimes, legitimateEntry, 
 
 
             csvWriter.writerow([final_id, entry, exit, totalCustomerDuration, totalGlassesZoneDuration, legit])
+    logging.info("Saved CSV to %s", CSV_OUTPUT)
 
-def stats(CSV_OUTPUT, totalCustomers, entryTimes, exitTimes, firstSeenDict, lastSeenDict, glassesZoneInDict, glassesZoneOutDict, legitimateEntry, reid_id_map):
-    
+def saveStats(CSV_OUTPUT, totalCustomers, entryTimes, exitTimes, firstSeenDict, lastSeenDict, glassesZoneInDict, glassesZoneOutDict, legitimateEntry, reid_id_map):
+    """
+    Generate analytics, calculate durations, plot charts, and save customer CSV data.
+
+    Parameters:
+    CSV_OUTPUT: pathlib.WindowsPath
+        This is the output path for the CSV
+    totalCustomers: set
+        This is the set of all tracked customer IDs.
+    entryTimes: dict
+        This is a dictionary mapping customer IDs to entry times.
+    exitTimes: dict
+        This is a dictionary mapping customer IDs to exit times.
+    firstSeenDict: dict
+        This is a dictionary mapping customer IDs to first detection time.
+    lastSeenDict: dict
+        This is a dictionary mapping customer IDs to last detection time.
+    glassesZoneInDict: dict
+        This is a dictionary mapping customer IDs to glasses zone entry times.
+    glassesZoneOutDict: dict
+        This is a dictionary mapping customer IDs to glasses zone exit times.
+    legitimateEntry: dict
+        This is a dictionary mapping customer IDs to whether they entered legitimately.
+    reid_id_map: dict
+        This is a dictionary mapping tracker IDs to their matched ReID IDs.
+
+    Returns:
+    None
+        This function does not return anything. It generates plots and saves CSV output.
+    """
+
     for tracker_id in totalCustomers:
         final_id = finalize_id(tracker_id, reid_id_map)
 
@@ -77,13 +135,13 @@ def stats(CSV_OUTPUT, totalCustomers, entryTimes, exitTimes, firstSeenDict, last
         averageTotalDuration = totalDurationSeconds / len(totalCustomers)
         averageGlassesZoneDuration = totalGlassesZoneDurationSeconds / len(validGlassesZoneDuration)
     except Exception as e:
-        print(f"Error getting average duration: {e}")
+        logging.error(f"Error getting average duration: {e}")
         averageTotalDuration = averageGlassesZoneDuration = 0
 
     averageTotalDuration, _ = secondsToString(averageTotalDuration)
     averageGlassesZoneDuration, _ = secondsToString(averageGlassesZoneDuration)
 
-    print(f"Average time spent in store: {averageTotalDuration}")
-    print(f"Average time spent browsing glasses: {averageGlassesZoneDuration}")
-
+    logging.info(f"Average time spent in store: {averageTotalDuration}")
+    logging.info(f"Average time spent browsing glasses: {averageGlassesZoneDuration}")
+    
     saveCSV(CSV_OUTPUT, totalCustomers, entryTimes, exitTimes, legitimateEntry, totalDuration, glassesZoneDuration, reid_id_map)

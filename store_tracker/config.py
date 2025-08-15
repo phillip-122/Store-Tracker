@@ -1,3 +1,4 @@
+import logging
 import torch
 import numpy as np
 from pathlib import Path
@@ -26,6 +27,8 @@ extractor = FeatureExtractor(
     model_name='osnet_x0_25',
     device='cuda' if torch.cuda.is_available() else 'cpu'
 )
+
+logging.basicConfig(level=logging.INFO, filename='tracker.log', filemode="w", format="%(asctime)s - %(levelname)s - %(message)s")
 
 #This is the yolo model I chose because it is very accurate but not super slow
 # if you want it to run faster then switch the model to a lower version such as m
